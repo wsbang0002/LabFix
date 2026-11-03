@@ -13,35 +13,15 @@ const memoryStore = new Map();
 
 // Helper: Extract reliable & net.isIP-validated client IP address
 export function getClientIp(req) {
-  let candidateIps = [];
-
-  const xForwardedFor = req.headers['x-forwarded-for'];
-  const xRealIp = req.headers['x-real-ip'];
-
-  if (typeof xForwardedFor === 'string' && xForwardedFor.trim()) {
-    candidateIps = xForwardedFor.split(',').map(ip => ip.trim());
-  }
-  if (typeof xRealIp === 'string' && xRealIp.trim()) {
-    candidateIps.push(xRealIp.trim());
-  }
-  if (req.socket?.remoteAddress) {
-    candidateIps.push(req.socket.remoteAddress);
-  }
-
-  // Iterate over candidates and return the first valid IPv4 or IPv6 address
-  for (const candidate of candidateIps) {
-    // Trim potential port numbers for IPv4 (e.g. 203.0.113.195:8080)
-    let cleanIp = candidate;
-    if (candidate.includes(':') && !candidate.includes('[')) {
-      const parts = candidate.split(':');
-      if (parts.length === 2 && net.isIP(parts[0]) === 4) {
-        cleanIp = parts[0];
-      }
-    }
-
-    if (net.isIP(cleanIp) > 0) {
-      return cleanIp;
-    }
+  // Vercel overwrites this header at its edge. Never trust client x-forwarded-for.
+  const forwarded = process.env.VERCEL === '1' ? req.headers['x-vercel-forwarded-for'] : undefined;
+  const candidates = [forwarded, req.socket?.remoteAddress];
+  for (const candidate of candidates) {
+    if (typeof candidate !== 'string' || net.isIP(candidate.trim()) === 0) continue;
+    const ip = candidate.trim();
+    if (net.isIP(ip) === 4) return ip;
+    // Canonicalize IPv6 spellings so alternate compression cannot create new buckets.
+    return new URL(`http://[${ip}]/`).hostname.slice(1, -1);
   }
 
   // Fallback identifier if no valid IP found (prevents key injection pollution)
@@ -67,6 +47,10 @@ export function scrubEnvironmentDetails(env, environmentDetails) {
 
 function applyMemoryRateLimit(clientIp) {
   const now = Date.now();
+  for (const [key, times] of memoryStore) {
+    if (!times.some(t => now - t < RATE_LIMIT_WINDOW_SECONDS * 1000)) memoryStore.delete(key);
+  }
+  if (!memoryStore.has(clientIp) && memoryStore.size >= 10000) return false;
   const userRequests = memoryStore.get(clientIp) || [];
   const validRequests = userRequests.filter(timestamp => now - timestamp < RATE_LIMIT_WINDOW_SECONDS * 1000);
   
@@ -86,7 +70,7 @@ export default async function handler(req, res) {
   const upstashUrl = process.env.UPSTASH_REDIS_REST_URL;
   const upstashToken = process.env.UPSTASH_REDIS_REST_TOKEN;
   const isUpstashConfigured = !!(upstashUrl && upstashToken);
-  const isProduction = process.env.NODE_ENV === 'production';
+  const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL_ENV === 'production';
 
   // 1. GET Method Check (Sanitized status output)
   if (req.method === 'GET') {
@@ -115,7 +99,10 @@ export default async function handler(req, res) {
   }
 
   try {
-    const body = req.body || {};
+    const body = req.body;
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return res.status(400).json({ success: false, error: 'JSON 객체가 필요합니다.' });
+    }
 
     // 4. Strict Input Validation
     const { env, environmentDetails, errorLog, codeSnippet, attemptedActions } = body;
@@ -132,11 +119,11 @@ export default async function handler(req, res) {
       return res.status(413).json({ success: false, error: '오류 로그 허용 크기(10,000자)를 초과했습니다.' });
     }
 
-    if (codeSnippet && (typeof codeSnippet !== 'string' || codeSnippet.length > 5000)) {
+    if (codeSnippet !== undefined && (typeof codeSnippet !== 'string' || codeSnippet.length > 5000)) {
       return res.status(400).json({ success: false, error: '관련 코드는 최대 5,000자까지 허용됩니다.' });
     }
 
-    if (attemptedActions && (typeof attemptedActions !== 'string' || attemptedActions.length > 2000)) {
+    if (attemptedActions !== undefined && (typeof attemptedActions !== 'string' || attemptedActions.length > 2000)) {
       return res.status(400).json({ success: false, error: '시도한 해결 방법은 최대 2,000자까지 허용됩니다.' });
     }
 
@@ -165,6 +152,8 @@ export default async function handler(req, res) {
         `;
 
         const requests = await redis.eval(luaScript, [redisKey], [RATE_LIMIT_WINDOW_SECONDS]);
+
+        if (!Number.isSafeInteger(Number(requests)) || Number(requests) < 1) throw new Error('Invalid rate counter');
 
         if (Number(requests) > MAX_REQUESTS_PER_WINDOW) {
           return res.status(429).json({
@@ -298,10 +287,12 @@ ${attemptedActions || '(없음)'}
     const response = await ai.models.generateContent({
       model: targetModel,
       contents: [
-        { role: 'user', parts: [{ text: systemInstruction + '\n' + userPrompt }] }
+        { role: 'user', parts: [{ text: userPrompt }] }
       ],
       config: {
+        systemInstruction,
         responseMimeType: 'application/json',
+        httpOptions: { timeout: 25000 },
         responseSchema: responseSchema,
         temperature: 0.2
       }
@@ -345,6 +336,7 @@ ${attemptedActions || '(없음)'}
 
     for (const c of parsedData.causes) {
       if (
+        !c || typeof c !== 'object' || Array.isArray(c) ||
         typeof c.name !== 'string' || !c.name.trim() || c.name.length > 200 ||
         typeof c.reason !== 'string' || !c.reason.trim() || c.reason.length > 1000 ||
         typeof c.check !== 'string' || !c.check.trim() || c.check.length > 1000
@@ -355,6 +347,7 @@ ${attemptedActions || '(없음)'}
 
     for (const s of parsedData.steps) {
       if (
+        !s || typeof s !== 'object' || Array.isArray(s) ||
         typeof s.step !== 'number' || !Number.isInteger(s.step) || s.step <= 0 ||
         typeof s.title !== 'string' || !s.title.trim() || s.title.length > 200 ||
         typeof s.desc !== 'string' || !s.desc.trim() || s.desc.length > 2000 ||

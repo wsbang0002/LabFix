@@ -184,7 +184,7 @@ async function testGetStatusSanitization() {
 
   if (
     res.statusCode === 200 &&
-    res.body.hasApiKey === true &&
+    res.body.hasApiKey === true && !JSON.stringify(res.body).includes('secret_api_key_value') &&
     res.body.model === 'gemini-2.5-flash' &&
     res.body.isProductionReady === false
   ) {
@@ -198,12 +198,13 @@ async function testGetStatusSanitization() {
 
 // 8. Unit Inspection: net.isIP Validation & Injection Prevention Test
 async function testClientIpParsing() {
+  process.env.VERCEL = '1';
   console.log('\n🧪 Test 8: net.isIP Validation & IP Injection Prevention Unit Test');
   
-  const reqIPv4 = { headers: { 'x-forwarded-for': '203.0.113.195' }, socket: {} };
-  const reqIPv6 = { headers: { 'x-forwarded-for': '2001:0db8:85a3:0000:0000:8a2e:0370:7334' }, socket: {} };
-  const reqMultiProxy = { headers: { 'x-forwarded-for': '203.0.113.195, 70.41.3.18, 150.172.238.178' }, socket: {} };
-  const reqInjectionAttack = { headers: { 'x-forwarded-for': '203.0.113.195; DROP TABLE; ' }, socket: { remoteAddress: '198.51.100.10' } };
+  const reqIPv4 = { headers: { 'x-vercel-forwarded-for': '203.0.113.195' }, socket: {} };
+  const reqIPv6 = { headers: { 'x-vercel-forwarded-for': '2001:0db8:85a3:0000:0000:8a2e:0370:7334' }, socket: {} };
+  const reqMultiProxy = { headers: { 'x-vercel-forwarded-for': '203.0.113.195' }, socket: {} };
+  const reqInjectionAttack = { headers: { 'x-vercel-forwarded-for': '203.0.113.195; DROP TABLE; ' }, socket: { remoteAddress: '198.51.100.10' } };
   const reqEmptyHeader = { headers: {}, socket: { remoteAddress: '192.168.1.10' } };
 
   const ip1 = getClientIp(reqIPv4);
@@ -214,7 +215,7 @@ async function testClientIpParsing() {
 
   if (
     ip1 === '203.0.113.195' &&
-    ip2 === '2001:0db8:85a3:0000:0000:8a2e:0370:7334' &&
+    ip2 === '2001:db8:85a3::8a2e:370:7334' &&
     ip3 === '203.0.113.195' &&
     ip4 === '198.51.100.10' && // Malicious text rejected by net.isIP, falls back to socket IP
     ip5 === '192.168.1.10'
@@ -225,6 +226,7 @@ async function testClientIpParsing() {
     console.error('❌ FAIL: net.isIP extraction test failed!', { ip1, ip2, ip3, ip4, ip5 });
     failedCount++;
   }
+  delete process.env.VERCEL;
 }
 
 // 9. Invalid HTTP Method Rejection
@@ -265,6 +267,7 @@ async function testMemoryRateLimitThreshold() {
     const res = createMockRes();
     await handler(req, res);
 
+    if (i <= 5 && res.statusCode !== 200) throw new Error('First five requests must succeed');
     if (i === 6 && res.statusCode === 429) {
       rejectedOnSixth = true;
     }

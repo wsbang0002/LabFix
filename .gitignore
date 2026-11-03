@@ -19,3 +19,9 @@ yarn-error.log*
 Thumbs.db
 *.swp
 *.tmp
+# Generated build and test artifacts
+public/
+test-results/
+playwright-report/
+.env.*
+!.env.example

@@ -922,11 +922,8 @@
       state.busy = busy;
       $('btn-analyze-ai').disabled = busy;
       $('btn-analyze-demo').disabled = busy;
-      if (mode === 'ai') {
-        $('btn-analyze-ai').textContent = busy ? '⏳ Gemini AI 분석 중...' : '✨ Gemini AI 오류 분석하기';
-      } else {
-        $('btn-analyze-demo').textContent = busy ? '⏳ 데모 준비 중...' : '🔍 데모 분석 (오프라인)';
-      }
+      $('btn-analyze-ai').textContent = busy && mode === 'ai' ? '⏳ Gemini AI 분석 중...' : '✨ Gemini AI 오류 분석하기';
+      $('btn-analyze-demo').textContent = busy && mode === 'demo' ? '⏳ 데모 준비 중...' : '🔍 데모 분석 (오프라인)';
       $('analysis-form').setAttribute('aria-busy', String(busy));
     }
 
@@ -1027,7 +1024,7 @@
           const text = $('banner-mode-text');
 
           if (state.apiAvailable) {
-            badge.textContent = state.isProductionReady ? 'AI 연동 준비됨' : 'AI 구성 완료 (RateLimit 미설정)';
+            badge.textContent = state.isProductionReady ? 'AI 연동 준비됨' : 'AI 구성 감지 (실연동 미검증)';
             badge.className = 'badge badge-ai';
             text.textContent = 'Vercel API (' + state.activeModelName + ')';
           } else {
