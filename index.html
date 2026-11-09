@@ -3,635 +3,1129 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>LabFix - AI 실습 장비·Python 오류 해결 도우미</title>
+  <title>LabFix — Developer Diagnostic Workbench</title>
   <style>
+    /* -------------------------------------------------------------------------- */
+    /* LabFix UI/UX 2.0 — Developer Diagnostic Workbench Design Tokens             */
+    /* Inspired by Linear / Raycast / Modern IDE Toolbars                        */
+    /* -------------------------------------------------------------------------- */
     :root {
-      --primary: #0d9488;
-      --primary-hover: #0f766e;
-      --primary-light: #ccfbf1;
-      --bg-main: #f8fafc;
-      --card-bg: #ffffff;
-      --text-main: #0f172a;
-      --text-muted: #475569;
-      --border: #cbd5e1;
-      --border-focus: #0d9488;
+      --bg-app: #f4f5f7;
+      --bg-sidebar: #0f172a;
+      --text-sidebar: #94a3b8;
+      --text-sidebar-active: #ffffff;
+      --bg-surface: #ffffff;
+      --bg-surface-subtle: #f8fafc;
+      --border-color: #e2e8f0;
+      --border-color-strong: #cbd5e1;
+      
+      --text-primary: #0f172a;
+      --text-secondary: #475569;
+      --text-muted: #94a3b8;
+      
+      --accent-primary: #0284c7;
+      --accent-hover: #0369a1;
+      --accent-light: #f0f9ff;
+      --accent-border: #bae6fd;
+      
       --danger: #ef4444;
-      --danger-light: #fee2e2;
+      --danger-light: #fef2f2;
+      --danger-border: #fecaca;
+      
       --warning: #f59e0b;
-      --warning-light: #fef3c7;
+      --warning-light: #fffbeb;
+      --warning-border: #fef3c7;
+      
       --success: #10b981;
-      --success-light: #d1fae5;
-      --code-bg: #1e293b;
-      --code-text: #f8fafc;
-      --radius: 8px;
+      --success-light: #ecfdf5;
+      --success-border: #a7f3d0;
+      
+      --editor-bg: #0d1117;
+      --editor-text: #e6edf3;
+      --editor-gutter: #161b22;
+      --editor-gutter-text: #6e7681;
+      --editor-border: #30363d;
+      
+      --code-editor-bg: #0f172a;
+      --code-editor-border: #1e293b;
+      
+      --radius-sm: 4px;
+      --radius-md: 6px;
+      --radius-lg: 8px;
+      
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      --font-mono: "JetBrains Mono", SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      
+      --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+      --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -2px rgba(0, 0, 0, 0.04);
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
+
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      background-color: var(--bg-main);
-      color: var(--text-main);
+      font-family: var(--font-sans);
+      background-color: var(--bg-app);
+      color: var(--text-primary);
       line-height: 1.5;
-      padding-bottom: 40px;
+      height: 100vh;
+      overflow: hidden;
+      -webkit-font-smoothing: antialiased;
     }
 
-    .container { width: 100%; max-width: 1200px; margin: 0 auto; padding: 0 16px; }
-
-    header {
-      background-color: var(--card-bg);
-      border-bottom: 1px solid var(--border);
-      padding: 16px 0;
-      margin-bottom: 16px;
-    }
-
-    .header-title { font-size: 1.5rem; font-weight: 700; color: var(--primary); display: flex; align-items: center; gap: 8px; }
-    .header-subtitle { font-size: 0.9rem; color: var(--text-muted); margin-top: 4px; }
-
-    .system-banner {
-      background-color: var(--warning-light);
-      border: 1px solid #fde68a;
-      border-radius: var(--radius);
-      padding: 10px 14px;
-      margin-top: 12px;
-      font-size: 0.85rem;
-      color: #92400e;
+    /* -------------------------------------------------------------------------- */
+    /* Workbench Layout Grid                                                      */
+    /* -------------------------------------------------------------------------- */
+    .workbench-layout {
       display: flex;
-      flex-wrap: wrap;
-      gap: 12px;
+      height: 100vh;
+      width: 100vw;
+      overflow: hidden;
+    }
+
+    /* Sidebar Area */
+    .sidebar {
+      width: 240px;
+      min-width: 240px;
+      background-color: var(--bg-sidebar);
+      color: var(--text-sidebar);
+      display: flex;
+      flex-direction: column;
+      border-right: 1px solid #1e293b;
+      user-select: none;
+      z-index: 40;
+    }
+
+    .sidebar-brand {
+      padding: 16px 18px;
+      display: flex;
       align-items: center;
+      gap: 10px;
+      border-bottom: 1px solid #1e293b;
+    }
+
+    .sidebar-logo-icon {
+      width: 26px;
+      height: 26px;
+      background: var(--accent-primary);
+      color: #fff;
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 0.82rem;
+      font-family: var(--font-mono);
+      letter-spacing: -0.05em;
+    }
+
+    .sidebar-brand-title {
+      color: #ffffff;
+      font-weight: 700;
+      font-size: 1rem;
+      letter-spacing: -0.02em;
+    }
+
+    .sidebar-brand-subtitle {
+      font-size: 0.72rem;
+      color: #64748b;
+      display: block;
+      margin-top: -2px;
+    }
+
+    .sidebar-actions {
+      padding: 14px 16px 8px 16px;
+    }
+
+    .btn-new-session {
+      width: 100%;
+      background-color: #1e293b;
+      color: #f8fafc;
+      border: 1px solid #334155;
+      padding: 8px 12px;
+      border-radius: var(--radius-md);
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.15s ease;
+    }
+    .btn-new-session:hover { background-color: #334155; border-color: #475569; }
+
+    .sidebar-menu {
+      padding: 8px 10px;
+      flex: 1;
+      overflow-y: auto;
+    }
+
+    .menu-group-label {
+      font-size: 0.68rem;
+      font-weight: 700;
+      color: #475569;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 12px 10px 4px 10px;
+    }
+
+    .nav-btn {
+      width: 100%;
+      text-align: left;
+      padding: 8px 10px;
+      background: transparent;
+      border: none;
+      border-radius: var(--radius-sm);
+      color: var(--text-sidebar);
+      font-size: 0.84rem;
+      font-weight: 500;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      transition: all 0.15s ease;
+      margin-bottom: 2px;
+    }
+
+    .nav-btn:hover { background-color: #1e293b; color: #f8fafc; }
+    .nav-btn.active { background-color: #0284c7; color: #ffffff; font-weight: 600; }
+
+    .nav-badge {
+      margin-left: auto;
+      background-color: #334155;
+      color: #f8fafc;
+      font-size: 0.7rem;
+      padding: 1px 6px;
+      border-radius: 10px;
+    }
+
+    .sidebar-footer {
+      padding: 14px 16px;
+      border-top: 1px solid #1e293b;
+      font-size: 0.75rem;
+      background-color: #0b1329;
+    }
+
+    /* Main Section Area */
+    .main-workspace {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      background-color: var(--bg-app);
+    }
+
+    /* Header Navbar */
+    .header-bar {
+      height: 56px;
+      min-height: 56px;
+      background-color: var(--bg-surface);
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      z-index: 30;
+    }
+
+    .header-breadcrumb {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+
+    .header-breadcrumb .active-location {
+      color: var(--text-primary);
+      font-weight: 600;
+    }
+
+    .system-status-container {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      font-size: 0.78rem;
     }
 
     .badge {
-      display: inline-block;
+      display: inline-flex;
+      align-items: center;
       padding: 2px 8px;
-      border-radius: 4px;
-      font-size: 0.75rem;
+      border-radius: var(--radius-sm);
+      font-size: 0.72rem;
       font-weight: 600;
-      text-transform: uppercase;
+      border: 1px solid transparent;
     }
 
-    .badge-demo { background-color: #fef3c7; color: #b45309; border: 1px solid #fcd34d; }
-    .badge-ai { background-color: #ccfbf1; color: #0f766e; border: 1px solid #99f6e4; }
-    .badge-storage { background-color: #e0e7ff; color: #3730a3; border: 1px solid #c7d2fe; }
-    .badge-status { background-color: #f3f4f6; color: #4b5563; border: 1px solid #e5e7eb; }
+    .badge-demo { background-color: var(--warning-light); color: #b45309; border-color: var(--warning-border); }
+    .badge-ai { background-color: var(--accent-light); color: var(--accent-hover); border-color: var(--accent-border); }
+    .badge-storage { background-color: #f1f5f9; color: #475569; border-color: var(--border-color); }
+    .badge-status { background-color: #f1f5f9; color: #64748b; border-color: var(--border-color); }
 
-    nav { display: flex; gap: 8px; border-bottom: 2px solid var(--border); margin-bottom: 20px; flex-wrap: wrap; }
-    .nav-btn {
-      padding: 10px 16px;
-      background: none;
-      border: none;
-      border-bottom: 3px solid transparent;
-      font-size: 0.95rem;
-      font-weight: 600;
-      color: var(--text-muted);
-      cursor: pointer;
-      transition: all 0.2s;
+    /* Content Area */
+    .content-viewport {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px;
     }
-    .nav-btn:hover { color: var(--primary); }
-    .nav-btn.active { color: var(--primary); border-bottom-color: var(--primary); }
 
     .tab-content { display: none; }
     .tab-content.active { display: block; }
 
-    .grid-2col { display: grid; grid-template-columns: minmax(0,1fr); gap: 20px; }
-    @media (min-width: 900px) { .grid-2col { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-
-    .card {
-      background-color: var(--card-bg);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 20px;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    /* Session Header Banner */
+    .session-header {
       margin-bottom: 20px;
     }
 
-    .card-title {
-      font-size: 1.1rem;
+    .session-title {
+      font-size: 1.15rem;
       font-weight: 700;
-      margin-bottom: 12px;
-      padding-bottom: 8px;
-      border-bottom: 1px solid #f1f5f9;
+      letter-spacing: -0.02em;
+      color: var(--text-primary);
       display: flex;
-      justify-content: space-between;
       align-items: center;
-      flex-wrap: wrap;
       gap: 8px;
     }
 
+    .session-desc {
+      font-size: 0.84rem;
+      color: var(--text-secondary);
+      margin-top: 2px;
+    }
+
+    /* Two-Column Workbench Layout */
+    .workbench-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+      gap: 20px;
+      align-items: start;
+    }
+
+    @media (max-width: 1080px) {
+      .workbench-grid { grid-template-columns: minmax(0, 1fr); }
+    }
+
+    .panel-card {
+      background-color: var(--bg-surface);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-sm);
+      margin-bottom: 20px;
+      overflow: hidden;
+    }
+
+    .panel-header {
+      padding: 12px 18px;
+      background-color: var(--bg-surface-subtle);
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .panel-header-title {
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+    }
+
+    .panel-body { padding: 18px; }
+
+    /* -------------------------------------------------------------------------- */
+    /* Workbench Components & Controls                                             */
+    /* -------------------------------------------------------------------------- */
+    .platform-selector-group {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 18px;
+    }
+
+    .platform-card {
+      border: 1px solid var(--border-color);
+      background-color: var(--bg-surface-subtle);
+      border-radius: var(--radius-md);
+      padding: 12px 14px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .platform-card:hover { border-color: var(--border-color-strong); background-color: #fff; }
+    
+    .platform-card.active {
+      border-color: var(--accent-primary);
+      background-color: var(--accent-light);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .platform-title {
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .platform-subtext {
+      font-size: 0.74rem;
+      color: var(--text-secondary);
+    }
+
+    /* Form Controls */
     .form-group { margin-bottom: 14px; }
-    .form-label { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 4px; color: var(--text-main); }
+    
+    .form-label {
+      display: block;
+      font-size: 0.8rem;
+      font-weight: 600;
+      margin-bottom: 4px;
+      color: var(--text-primary);
+    }
+    
     .form-label .required { color: var(--danger); margin-left: 2px; }
 
     .form-control {
       width: 100%;
-      padding: 8px 12px;
-      font-size: 0.9rem;
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      background-color: #fff;
-      color: var(--text-main);
-      transition: border-color 0.2s;
-    }
-    .form-control:focus { outline: none; border-color: var(--border-focus); box-shadow: 0 0 0 2px var(--primary-light); }
-
-    textarea.form-control { resize: vertical; min-height: 80px; }
-    .code-input {
-      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
+      padding: 7px 10px;
       font-size: 0.85rem;
-      background-color: #f8fafc;
-      white-space: pre;
-      word-break: normal;
-      overflow-x: auto;
-      max-width: 100%;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm);
+      background-color: #fff;
+      color: var(--text-primary);
+      transition: all 0.15s ease;
+      font-family: inherit;
     }
 
-    .privacy-notice {
+    .form-control:focus {
+      outline: none;
+      border-color: var(--accent-primary);
+      box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.15);
+    }
+
+    .grid-form-2col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    /* IDE Log & Code Editor Styling */
+    .editor-wrapper {
+      border: 1px solid var(--editor-border);
+      border-radius: var(--radius-md);
+      background-color: var(--editor-bg);
+      overflow: hidden;
+      margin-bottom: 4px;
+    }
+
+    .editor-toolbar {
+      background-color: var(--editor-gutter);
+      padding: 6px 12px;
+      border-bottom: 1px solid var(--editor-border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.74rem;
+      color: var(--editor-gutter-text);
+      font-family: var(--font-mono);
+    }
+
+    .editor-container {
+      display: flex;
+      background-color: var(--editor-bg);
+    }
+
+    .editor-gutter {
+      width: 34px;
+      background-color: var(--editor-gutter);
+      border-right: 1px solid var(--editor-border);
+      padding: 8px 0;
+      color: var(--editor-gutter-text);
+      font-family: var(--font-mono);
       font-size: 0.78rem;
-      color: #b45309;
-      background-color: #fffbeb;
-      padding: 8px 12px;
-      border-radius: 4px;
-      border: 1px solid #fef3c7;
-      margin-bottom: 12px;
+      text-align: right;
+      padding-right: 8px;
+      user-select: none;
+      line-height: 1.45;
     }
 
-    .char-counter { font-size: 0.75rem; color: var(--text-muted); text-align: right; margin-top: 2px; }
+    textarea.code-editor-input {
+      flex: 1;
+      background-color: var(--editor-bg);
+      color: var(--editor-text);
+      font-family: var(--font-mono);
+      font-size: 0.81rem;
+      padding: 8px 12px;
+      border: none;
+      resize: vertical;
+      min-height: 120px;
+      line-height: 1.45;
+      white-space: pre;
+      overflow-x: auto;
+      outline: none;
+    }
 
+    /* Buttons */
     .btn {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      padding: 8px 16px;
-      font-size: 0.9rem;
+      padding: 7px 14px;
+      font-size: 0.83rem;
       font-weight: 600;
-      border-radius: 6px;
-      border: 1px solid transparent;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-color);
+      background-color: #fff;
+      color: var(--text-primary);
       cursor: pointer;
-      transition: all 0.2s;
+      transition: all 0.15s ease;
       gap: 6px;
+      user-select: none;
     }
-    .btn:disabled { opacity: 0.6; cursor: not-allowed; }
-    .btn-primary { background-color: var(--primary); color: #fff; }
-    .btn-primary:hover:not(:disabled) { background-color: var(--primary-hover); }
-    .btn-secondary { background-color: #f1f5f9; color: var(--text-main); border-color: var(--border); }
+
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    
+    .btn-primary { background-color: var(--text-primary); color: #fff; border-color: var(--text-primary); }
+    .btn-primary:hover:not(:disabled) { background-color: #334155; }
+
+    .btn-accent { background-color: var(--accent-primary); color: #fff; border-color: var(--accent-primary); }
+    .btn-accent:hover:not(:disabled) { background-color: var(--accent-hover); }
+
+    .btn-secondary { background-color: var(--bg-surface-subtle); color: var(--text-primary); }
     .btn-secondary:hover:not(:disabled) { background-color: #e2e8f0; }
-    .btn-outline { background-color: transparent; color: var(--primary); border-color: var(--primary); }
-    .btn-outline:hover:not(:disabled) { background-color: var(--primary-light); }
-    .btn-danger { background-color: var(--danger); color: #fff; }
-    .btn-danger:hover:not(:disabled) { background-color: #dc2626; }
-    .btn-sm { padding: 4px 10px; font-size: 0.8rem; }
 
-    .btn-group { display: flex; gap: 8px; flex-wrap: wrap; }
-    .env-selector { display: flex; gap: 8px; margin-bottom: 16px; }
-    .env-btn {
-      flex: 1;
-      padding: 10px;
-      text-align: center;
-      background-color: #f1f5f9;
-      border: 2px solid var(--border);
-      border-radius: 6px;
-      font-weight: 600;
+    .btn-danger { background-color: #fff; color: var(--danger); border-color: var(--danger-border); }
+    .btn-danger:hover:not(:disabled) { background-color: var(--danger-light); }
+
+    .btn-sm { padding: 4px 8px; font-size: 0.76rem; }
+
+    /* Example Chips List */
+    .example-list { display: flex; flex-direction: column; gap: 8px; }
+    
+    .example-item {
+      padding: 10px 12px;
+      background-color: var(--bg-surface-subtle);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
       cursor: pointer;
+      transition: all 0.15s ease;
     }
-    .env-btn.active { background-color: var(--primary-light); border-color: var(--primary); color: var(--primary-hover); }
 
-    .example-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
-    .chip {
-      font-size: 0.8rem;
-      padding: 4px 10px;
-      background-color: #f1f5f9;
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-    .chip:hover { background-color: var(--primary-light); border-color: var(--primary); color: var(--primary); }
-
-    .output-section { margin-bottom: 20px; }
-    .output-title { font-size: 0.95rem; font-weight: 700; color: var(--text-main); margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
-    .code-block {
-      background-color: var(--code-bg);
-      color: var(--code-text);
-      padding: 12px;
-      border-radius: 6px;
-      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
+    .example-item:hover { border-color: var(--accent-primary); background-color: #fff; }
+    
+    .example-item-header {
       font-size: 0.82rem;
-      white-space: pre;
-      overflow-x: auto;
-      max-height: 250px;
-      position: relative;
-      margin-top: 6px;
-      max-width: 100%;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-bottom: 2px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
     }
 
-    .step-card { background-color: #f8fafc; border: 1px solid var(--border); border-radius: 6px; padding: 12px; margin-bottom: 10px; }
-    .step-header { font-weight: 600; font-size: 0.9rem; margin-bottom: 4px; color: var(--primary-hover); overflow-wrap: anywhere; }
-    .step-meta { font-size: 0.83rem; color: var(--text-muted); margin-bottom: 6px; overflow-wrap: anywhere; }
-    .step-action-group { display: flex; gap: 12px; margin-top: 8px; font-size: 0.85rem; align-items: center; flex-wrap: wrap; }
+    .example-item-desc { font-size: 0.75rem; color: var(--text-secondary); }
+
+    /* Diagnostic Report Output */
+    .report-card {
+      background-color: #fff;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+
+    .report-title-bar {
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 12px;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .report-section-title {
+      font-size: 0.84rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      margin-bottom: 8px;
+    }
+
+    .step-card {
+      background-color: var(--bg-surface-subtle);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 12px;
+      margin-bottom: 10px;
+    }
+
+    .step-header { font-weight: 700; font-size: 0.84rem; color: var(--text-primary); margin-bottom: 4px; }
+    .step-meta { font-size: 0.78rem; color: var(--text-secondary); margin-bottom: 4px; }
 
     .stale-warning {
-      background-color: #fef2f2;
-      border: 1px solid #fca5a5;
+      background-color: var(--danger-light);
+      border: 1px solid var(--danger-border);
       color: #991b1b;
-      padding: 8px 12px;
-      border-radius: 6px;
-      font-size: 0.85rem;
-      margin-bottom: 12px;
-      overflow-wrap: anywhere;
+      padding: 10px 14px;
+      border-radius: var(--radius-md);
+      font-size: 0.82rem;
+      margin-bottom: 16px;
       white-space: pre-line;
     }
 
-    .filter-bar {
-      display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px;
-      background-color: #fff; padding: 12px; border-radius: var(--radius); border: 1px solid var(--border);
+    /* History Table View */
+    .history-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.82rem;
     }
-    .history-item {
-      background-color: #fff; border: 1px solid var(--border); border-radius: var(--radius);
-      padding: 16px; margin-bottom: 12px; transition: box-shadow 0.2s; overflow-wrap: anywhere;
-    }
-    .history-item:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
-    .history-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; flex-wrap: wrap; gap: 8px; }
-    .history-header > div:first-child { flex: 1 1 180px; }
-    .history-title { font-weight: 700; font-size: 1rem; overflow-wrap: anywhere; }
-    .history-meta { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 10px; overflow-wrap: anywhere; }
 
-    .tag { display: inline-block; padding: 2px 6px; font-size: 0.75rem; border-radius: 4px; font-weight: 600; }
+    .history-table th {
+      background-color: var(--bg-surface-subtle);
+      padding: 10px 14px;
+      text-align: left;
+      font-weight: 700;
+      color: var(--text-secondary);
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .history-table td {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border-color);
+      color: var(--text-primary);
+    }
+
+    .history-table tr:hover { background-color: var(--bg-surface-subtle); }
+
+    .tag {
+      display: inline-block;
+      padding: 2px 6px;
+      font-size: 0.72rem;
+      border-radius: 4px;
+      font-weight: 600;
+    }
+
     .tag-arduino { background-color: #e0f2fe; color: #0369a1; }
     .tag-python { background-color: #fef9c3; color: #854d0e; }
     .tag-solved { background-color: var(--success-light); color: #065f46; }
     .tag-unsolved { background-color: var(--danger-light); color: #991b1b; }
-    .tag-pending { background-color: #f3f4f6; color: #374151; }
+    .tag-pending { background-color: #f1f5f9; color: #475569; }
 
-    .empty-state { text-align: center; padding: 40px 20px; color: var(--text-muted); }
-    .empty-state-icon { font-size: 2rem; margin-bottom: 8px; }
-
+    /* Modals */
     .modal-backdrop {
-      display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-      background-color: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; padding: 16px;
+      display: none;
+      position: fixed;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background-color: rgba(15, 23, 42, 0.5);
+      backdrop-filter: blur(2px);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
     }
     .modal-backdrop.active { display: flex; }
+
     .modal-content {
-      background-color: #fff; border-radius: var(--radius); max-width: 600px; width: 100%;
-      max-height: 90vh; overflow-y: auto; padding: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); min-width: 0; overflow-wrap: anywhere;
+      background-color: #fff;
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border-color);
+      max-width: 640px;
+      width: 100%;
+      max-height: 88vh;
+      overflow-y: auto;
+      padding: 24px;
+      box-shadow: var(--shadow-md);
     }
 
     .hidden { display: none !important; }
-    .text-sm { font-size: 0.85rem; }
+    .text-sm { font-size: 0.82rem; }
     .text-muted { color: var(--text-muted); }
     .mt-2 { margin-top: 8px; }
-    .mt-4 { margin-top: 16px; }
-    .mb-2 { margin-bottom: 8px; }
-    .mb-4 { margin-bottom: 16px; }
+    .char-counter { font-size: 0.72rem; color: var(--text-muted); text-align: right; margin-top: 4px; }
+    .counter-error { color: var(--danger); font-weight: 700; }
 
-    .step-status-select { width: auto; max-width: 100%; }
-    .counter-error { color: #b91c1c; font-weight: 700; }
-    button:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px solid var(--primary); outline-offset: 3px; }
-    .visually-hidden { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+    /* Mobile Responsive Adjustments */
+    @media (max-width: 768px) {
+      .workbench-layout { flex-direction: column; height: auto; overflow: visible; }
+      .sidebar { width: 100%; height: auto; min-width: 0; border-right: none; border-bottom: 1px solid #1e293b; }
+      .sidebar-menu { display: flex; overflow-x: auto; padding: 6px; }
+      .menu-group-label { display: none; }
+      .nav-btn { width: auto; white-space: nowrap; }
+      .content-viewport { padding: 16px; }
+      .header-bar { padding: 0 16px; }
+    }
   </style>
 </head>
 <body>
 
-  <!-- Header -->
-  <header>
-    <div class="container">
-      <div class="header-title">
-        <span>🔧 LabFix</span>
+  <div class="workbench-layout">
+
+    <!-- Left Sidebar Nav -->
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <div class="sidebar-logo-icon">LF</div>
+        <div>
+          <span class="sidebar-brand-title">LabFix Workbench</span>
+          <span class="sidebar-brand-subtitle">v1.3.3 Developer Edition</span>
+        </div>
       </div>
-      <div class="header-subtitle">Arduino와 Python 오류를 이해하고 해결 과정을 기록하세요.</div>
+
+      <div class="sidebar-actions">
+        <button class="btn-new-session" onclick="resetFormWithConfirm()">
+          <span>+</span> New Diagnosis Session
+        </button>
+      </div>
+
+      <div class="sidebar-menu">
+        <div class="menu-group-label">WORKSPACE</div>
+        <button class="nav-btn active" data-tab="analyze" onclick="switchTab('analyze')" aria-current="page">
+          <span style="font-size: 0.95rem;">🔍</span> Diagnostic Editor
+        </button>
+        <button class="nav-btn" data-tab="history" onclick="switchTab('history')">
+          <span style="font-size: 0.95rem;">📜</span> My History <span class="nav-badge" id="history-count">0</span>
+        </button>
+        
+        <div class="menu-group-label">DOCUMENTATION</div>
+        <button class="nav-btn" data-tab="guide" onclick="switchTab('guide')">
+          <span style="font-size: 0.95rem;">📖</span> User Guide & Limits
+        </button>
+      </div>
+
+      <div class="sidebar-footer">
+        <div style="color: #64748b; font-size: 0.68rem; text-transform: uppercase; font-weight: 700; margin-bottom: 4px;">SYSTEM METRICS</div>
+        <div id="sidebar-status-text" style="color: #94a3b8; font-size: 0.74rem;">API: Checking server...</div>
+      </div>
+    </aside>
+
+    <!-- Main Workspace Area -->
+    <main class="main-workspace">
       
-      <!-- System Status Banner -->
-      <div class="system-banner">
-        <div><span class="badge badge-demo" id="banner-mode-badge">서버 상태 확인 중</span> <span id="banner-mode-text">Vercel 백엔드 연결 점검...</span></div>
-        <div><span class="badge badge-storage">저장</span> <span id="storage-state-label">이 브라우저에만 저장 (localStorage)</span></div>
-        <div><span class="badge badge-status">Google Sheets</span> 미연결</div>
-      </div>
-    </div>
-  </header>
+      <!-- Top Header Navigation -->
+      <header class="header-bar">
+        <div class="header-breadcrumb">
+          <span>LabFix</span> / <span class="active-location" id="breadcrumb-label">Diagnostic Session</span>
+        </div>
 
-  <div class="container">
-    <div id="storage-warning" class="stale-warning hidden" role="alert" aria-live="polite"></div>
-    
-    <!-- Navigation Tabs -->
-    <nav aria-label="LabFix 주요 메뉴">
-      <button class="nav-btn active" data-tab="analyze" onclick="switchTab('analyze')" aria-current="page">오류 분석</button>
-      <button class="nav-btn" data-tab="history" onclick="switchTab('history')">내 해결 기록 (<span id="history-count">0</span>)</button>
-      <button class="nav-btn" data-tab="guide" onclick="switchTab('guide')">사용 안내</button>
-    </nav>
+        <div class="system-status-container">
+          <div>
+            <span class="badge badge-demo" id="banner-mode-badge">서버 상태 점검 중</span>
+            <span id="banner-mode-text" style="color: var(--text-secondary); margin-left: 4px;">API 상태 확인 중...</span>
+          </div>
+          <div>
+            <span class="badge badge-storage">Storage</span>
+            <span id="storage-state-label">localStorage (Current Browser)</span>
+          </div>
+          <div>
+            <span class="badge badge-status">Sheets</span>
+            <span>Disconnected</span>
+          </div>
+        </div>
+      </header>
 
-    <!-- TAB 1: ERROR ANALYSIS -->
-    <div id="tab-analyze" class="tab-content active">
-      <div class="grid-2col">
-        <div>
-          <div class="card">
-            <div class="card-title">
-              <span>오류 정보 입력</span>
-              <button class="btn btn-secondary btn-sm" onclick="resetFormWithConfirm()">입력 초기화</button>
+      <!-- Viewport Content -->
+      <div class="content-viewport">
+        <div id="storage-warning" class="stale-warning hidden" role="alert" aria-live="polite"></div>
+
+        <!-- TAB 1: DIAGNOSTIC EDITOR -->
+        <div id="tab-analyze" class="tab-content active">
+          <div class="session-header">
+            <div class="session-title">
+              <span>⚡ NEW DIAGNOSTIC SESSION</span>
             </div>
-
-            <div class="env-selector">
-              <button type="button" id="env-btn-arduino" aria-pressed="true" class="env-btn active" onclick="setEnvironment('arduino')">
-                🤖 Arduino (Uno R3)
-              </button>
-              <button type="button" id="env-btn-python" aria-pressed="false" class="env-btn" onclick="setEnvironment('python')">
-                🐍 Python (3.x)
-              </button>
+            <div class="session-desc">
+              Arduino 및 Python 환경에서 발생한 오류 로그를 입력하여 원인을 진단하고 단계별 점검 순서를 작성하세요.
             </div>
+          </div>
 
-            <div class="form-group">
-              <label class="form-label">시연용 예제 불러오기 (클릭):</label>
-              <div class="example-chips" id="example-chips-container"></div>
-            </div>
+          <div class="workbench-grid">
+            
+            <!-- Left Input Column -->
+            <div>
+              <div class="panel-card">
+                <div class="panel-header">
+                  <div class="panel-header-title">1. Target Platform & Environment</div>
+                  <button class="btn btn-secondary btn-sm" onclick="resetFormWithConfirm()">Clear Form</button>
+                </div>
+                
+                <div class="panel-body">
+                  <!-- Platform Selector Cards -->
+                  <div class="platform-selector-group">
+                    <div class="platform-card active" id="env-btn-arduino" onclick="setEnvironment('arduino')">
+                      <div class="platform-title">
+                        <span>🤖 Arduino</span>
+                        <span class="badge badge-ai" style="font-size: 0.68rem;">Uno R3</span>
+                      </div>
+                      <div class="platform-subtext">Hardware / Firmware / Serial</div>
+                    </div>
+                    
+                    <div class="platform-card" id="env-btn-python" onclick="setEnvironment('python')">
+                      <div class="platform-title">
+                        <span>🐍 Python</span>
+                        <span class="badge badge-storage" style="font-size: 0.68rem;">3.x Runtime</span>
+                      </div>
+                      <div class="platform-subtext">Runtime / Package / Traceback</div>
+                    </div>
+                  </div>
 
-            <form id="analysis-form" onsubmit="event.preventDefault();">
-              <div class="privacy-notice">
-                ⚠️ API 키, 비밀번호, 토큰, 개인정보가 포함된 로그는 제거한 후 입력하세요.
+                  <form id="analysis-form" onsubmit="event.preventDefault();">
+                    <div id="form-errors" class="stale-warning hidden" role="alert"></div>
+
+                    <div class="form-group">
+                      <label class="form-label" for="inp-title">Issue Title / 문제 제목 <span class="text-muted">(선택, 최대 120자)</span></label>
+                      <input type="text" id="inp-title" class="form-control" placeholder="예: 시리얼 모니터 출력 안 됨 / ModuleNotFoundError 발생" aria-describedby="title-count" oninput="invalidateCurrentResult()">
+                      <div id="title-count" class="char-counter">0 / 120자</div>
+                    </div>
+
+                    <div class="grid-form-2col">
+                      <div class="form-group">
+                        <label class="form-label" for="inp-os">운영체제 (OS)</label>
+                        <select id="inp-os" class="form-control" onchange="invalidateCurrentResult()">
+                          <option value="Windows">Windows</option>
+                          <option value="macOS">macOS</option>
+                          <option value="Linux">Linux</option>
+                          <option value="모름">모름</option>
+                        </select>
+                      </div>
+
+                      <!-- Arduino Specific Fields -->
+                      <div id="arduino-fields" style="display: contents;">
+                        <div class="form-group">
+                          <label class="form-label" for="ard-board">보드 종류 (Board Type)</label>
+                          <select id="ard-board" class="form-control" onchange="invalidateCurrentResult()">
+                            <option value="Uno R3">Arduino Uno R3 (기본)</option>
+                            <option value="기타">기타 보드 (범위 밖)</option>
+                            <option value="모름">모름</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Collapsible Additional Parameters Toggle -->
+                    <div style="margin-bottom: 12px;">
+                      <button type="button" class="btn btn-secondary btn-sm" onclick="toggleExtraEnvFields()" style="font-weight: 600;">
+                        ⚙️ 세부 환경 정보 설정 <span id="extra-env-toggle-icon">▼</span>
+                      </button>
+                    </div>
+
+                    <div id="extra-env-container" class="hidden">
+                      <div id="arduino-extra-fields">
+                        <div class="grid-form-2col">
+                          <div class="form-group">
+                            <label class="form-label" for="ard-ide">IDE 버전</label>
+                            <input type="text" id="ard-ide" class="form-control" placeholder="예: 2.2.1" oninput="invalidateCurrentResult()">
+                          </div>
+                          <div class="form-group">
+                            <label class="form-label" for="ard-stage">오류 발생 단계</label>
+                            <select id="ard-stage" class="form-control" onchange="invalidateCurrentResult()">
+                              <option value="컴파일">컴파일 오류</option>
+                              <option value="업로드">업로드 오류</option>
+                              <option value="시리얼 통신">시리얼 통신</option>
+                              <option value="기타">기타 / 잘 모름</option>
+                            </select>
+                          </div>
+                        </div>
+                        <div class="grid-form-2col">
+                          <div class="form-group">
+                            <label class="form-label" for="ard-port">연결 포트 (Port)</label>
+                            <input type="text" id="ard-port" class="form-control" placeholder="예: COM3" oninput="invalidateCurrentResult()">
+                          </div>
+                          <div class="form-group">
+                            <label class="form-label" for="ard-recognized">보드 인식 여부</label>
+                            <select id="ard-recognized" class="form-control" onchange="invalidateCurrentResult()">
+                              <option value="예">예 (목록에 존재)</option>
+                              <option value="아니오">아니오 (목록에 없음)</option>
+                              <option value="모름">모름</option>
+                            </select>
+                          </div>
+                        </div>
+                        <div class="form-group">
+                          <label class="form-label" for="ard-extra">연결 주변 장치 (선택)</label>
+                          <input type="text" id="ard-extra" class="form-control" placeholder="예: DHT11 온습도 센서, 서보모터" oninput="invalidateCurrentResult()">
+                        </div>
+                      </div>
+
+                      <!-- Python Specific Fields -->
+                      <div id="python-fields" class="hidden">
+                        <div class="grid-form-2col">
+                          <div class="form-group">
+                            <label class="form-label" for="py-ver">Python 버전</label>
+                            <input type="text" id="py-ver" class="form-control" placeholder="예: 3.10.12" oninput="invalidateCurrentResult()">
+                          </div>
+                          <div class="form-group">
+                            <label class="form-label" for="py-tool">실행 도구</label>
+                            <select id="py-tool" class="form-control" onchange="invalidateCurrentResult()">
+                              <option value="VS Code">VS Code</option>
+                              <option value="PyCharm">PyCharm</option>
+                              <option value="Jupyter·Colab">Jupyter / Colab</option>
+                              <option value="터미널">기본 터미널</option>
+                              <option value="기타">기타</option>
+                            </select>
+                          </div>
+                        </div>
+                        <div class="grid-form-2col">
+                          <div class="form-group">
+                            <label class="form-label" for="py-venv">가상환경 여부</label>
+                            <select id="py-venv" class="form-control" onchange="invalidateCurrentResult()">
+                              <option value="사용 안 함">사용 안 함</option>
+                              <option value="venv">venv / virtualenv</option>
+                              <option value="conda">Conda</option>
+                              <option value="모름">모름</option>
+                            </select>
+                          </div>
+                          <div class="form-group">
+                            <label class="form-label" for="py-stage">오류 발생 단계</label>
+                            <select id="py-stage" class="form-control" onchange="invalidateCurrentResult()">
+                              <option value="코드 실행">코드 실행</option>
+                              <option value="패키지 설치">패키지 설치 (pip)</option>
+                              <option value="파일 읽기">파일 I/O 오류</option>
+                              <option value="기타">기타</option>
+                            </select>
+                          </div>
+                        </div>
+                        <div class="form-group">
+                          <label class="form-label" for="py-cmd">실행 명령어 (선택)</label>
+                          <input type="text" id="py-cmd" class="form-control" placeholder="예: python main.py 또는 pip install pandas" oninput="invalidateCurrentResult()">
+                        </div>
+                      </div>
+
+                      <div class="form-group">
+                        <label class="form-label" for="inp-situation">오류 발생 상황 (선택)</label>
+                        <input type="text" id="inp-situation" class="form-control" placeholder="예: 보드 USB 케이블을 연결한 직후 발생함." oninput="invalidateCurrentResult()">
+                      </div>
+                    </div>
+
+                    <!-- IDE Log Editor Box -->
+                    <div class="form-group">
+                      <label class="form-label" for="inp-log">
+                        Terminal Log Output / 오류 메시지 및 로그 <span class="required">* 필수</span>
+                      </label>
+                      <div class="editor-wrapper">
+                        <div class="editor-toolbar">
+                          <span style="color: #f59e0b; font-weight: 700;">LOG_OUTPUT // Terminal Output</span>
+                          <span id="log-count">0 / 10,000자</span>
+                        </div>
+                        <div class="editor-container">
+                          <div class="editor-gutter">1<br>2<br>3<br>4<br>5</div>
+                          <textarea id="inp-log" aria-required="true" aria-describedby="log-count form-errors" class="code-editor-input" placeholder="터미널 호출 스택(Traceback) 또는 아두이노 업로드 출력 메시지를 복사해서 붙여넣으세요..." oninput="handleCharInput()"></textarea>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- IDE Code Editor Box -->
+                    <div class="form-group">
+                      <label class="form-label" for="inp-code">Source Code Snippet / 관련 코드 <span class="text-muted">(선택)</span></label>
+                      <div class="editor-wrapper" style="border-color: var(--code-editor-border); background-color: var(--code-editor-bg);">
+                        <div class="editor-toolbar" style="background-color: #020617; border-color: var(--code-editor-border);">
+                          <span style="color: #38bdf8; font-weight: 700;">CODE_SNIPPET // Source File</span>
+                          <span id="code-count">0 / 5,000자</span>
+                        </div>
+                        <div class="editor-container" style="background-color: var(--code-editor-bg);">
+                          <div class="editor-gutter" style="background-color: #020617; border-color: var(--code-editor-border);">1<br>2<br>3</div>
+                          <textarea id="inp-code" aria-describedby="code-count" class="code-editor-input" style="background-color: var(--code-editor-bg);" placeholder="오류가 발생한 코드 조각을 입력하세요..." oninput="handleCharInput()"></textarea>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="form-group">
+                      <label class="form-label" for="inp-tried">Attempted Solutions / 이미 시도한 해결 방법 <span class="text-muted">(선택, 최대 2,000자)</span></label>
+                      <textarea id="inp-tried" aria-describedby="tried-count" class="form-control" placeholder="예: USB 케이블을 변경하거나 라이브러리를 재설치해 봄." oninput="invalidateCurrentResult()"></textarea>
+                      <div id="tried-count" class="char-counter">0 / 2,000자</div>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 18px;">
+                      <button type="button" id="btn-analyze-ai" class="btn btn-accent" style="padding: 10px;" onclick="runAnalysis('ai')">
+                        ✨ Run Gemini AI Diagnostic
+                      </button>
+                      <button type="button" id="btn-analyze-demo" class="btn btn-secondary" style="padding: 10px;" onclick="runAnalysis('demo')">
+                        🔍 Offline Demo Mode
+                      </button>
+                    </div>
+
+                    <!-- Cancel Analysis Active Bar -->
+                    <div id="cancel-bar" class="hidden mt-2" style="text-align: center;">
+                      <button type="button" class="btn btn-danger btn-sm" onclick="cancelActiveRequest()">
+                        🛑 분석 실행 취소 (Cancel Request)
+                      </button>
+                    </div>
+                  </form>
+                </div>
               </div>
 
-              <div id="form-errors" class="stale-warning hidden" role="alert"></div>
-              
-              <div class="form-group">
-                <label class="form-label" for="inp-title">문제 제목 (선택, 최대 120자)</label>
-                <input type="text" id="inp-title" class="form-control" placeholder="예: 시리얼 모니터 출력 안 됨 / ModuleNotFoundError 발생" aria-describedby="title-count" oninput="invalidateCurrentResult()">
-                <div id="title-count" class="char-counter">0 / 120자</div>
+              <!-- Preset Examples Panel -->
+              <div class="panel-card">
+                <div class="panel-header">
+                  <div class="panel-header-title">2. Preset Demonstration Library</div>
+                </div>
+                <div class="panel-body">
+                  <div class="example-list" id="example-chips-container"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right Output Column -->
+            <div>
+              <div id="output-placeholder" class="panel-card" style="padding: 48px 20px; text-align: center;">
+                <div style="font-size: 2rem; margin-bottom: 12px; opacity: 0.5;">📊</div>
+                <div style="font-size: 0.95rem; font-weight: 700; color: var(--text-primary);">Awaiting Diagnostic Input</div>
+                <div class="text-sm text-muted mt-2">
+                  왼쪽 파이프라인에서 오류 로그를 입력하거나 예제를 선택한 후<br><b>[Run Gemini AI Diagnostic]</b>를 누르면 분석 보고서가 생성됩니다.
+                </div>
               </div>
 
-              <div class="form-group">
-                <label class="form-label" for="inp-os">운영체제</label>
-                <select id="inp-os" class="form-control" onchange="invalidateCurrentResult()">
-                  <option value="Windows">Windows</option>
-                  <option value="macOS">macOS</option>
-                  <option value="Linux">Linux</option>
-                  <option value="모름">모름</option>
+              <!-- Diagnostic Report Result -->
+              <div id="output-result" class="panel-card hidden">
+                <div class="panel-header">
+                  <div class="panel-header-title">Diagnosis Report</div>
+                  <span id="res-badge-demo" class="badge badge-demo">시연용 예제</span>
+                </div>
+
+                <div class="panel-body">
+                  <div id="stale-warning-banner" class="stale-warning hidden">
+                    ⚠️ 입력 양식의 내용이 수정되었습니다. 현재 진단 결과는 이전 입력 기준입니다. 다시 분석을 실행하세요.
+                  </div>
+
+                  <div style="background-color: var(--success-light); padding: 12px 14px; border-radius: var(--radius-md); border: 1px solid var(--success-border); margin-bottom: 18px;">
+                    <div style="font-size: 0.72rem; font-weight: 700; color: #065f46; text-transform: uppercase;">DIAGNOSED ERROR TYPE</div>
+                    <div id="res-error-type" style="font-size: 1rem; font-weight: 700; color: #047857; margin-top: 2px;"></div>
+                  </div>
+
+                  <div class="report-section-title">📋 A. Executive Summary</div>
+                  <div id="res-summary" class="text-sm" style="background-color: var(--bg-surface-subtle); padding: 12px; border-radius: var(--radius-md); border: 1px solid var(--border-color); margin-bottom: 18px;"></div>
+
+                  <div class="report-section-title">🔍 B. Confirmed Evidence</div>
+                  <ul id="res-evidence" class="text-sm" style="padding-left: 20px; color: var(--text-secondary); margin-bottom: 18px;"></ul>
+
+                  <div class="report-section-title">💡 C. Root Cause Candidates</div>
+                  <div id="res-causes" style="margin-bottom: 18px;"></div>
+
+                  <div class="report-section-title">🛠️ D. Priority Resolution Steps</div>
+                  <div id="res-steps" style="margin-bottom: 18px;"></div>
+
+                  <div class="report-section-title">❓ E. Additional Inquiry</div>
+                  <div id="res-questions" class="text-sm" style="background-color: var(--warning-light); padding: 12px; border-radius: var(--radius-md); border: 1px solid var(--warning-border); margin-bottom: 18px;"></div>
+
+                  <!-- Resolution Log Box -->
+                  <div style="border-top: 1px solid var(--border-color); padding-top: 16px; margin-top: 20px;">
+                    <div class="report-section-title">💾 F. Save Resolution Record</div>
+
+                    <div class="form-group">
+                      <label class="form-label" for="res-status-select">Final Resolution Status</label>
+                      <select id="res-status-select" class="form-control" onchange="toggleResolutionMemoRequirement()">
+                        <option value="pending">아직 시도하지 않음</option>
+                        <option value="solved">해결됨 (사용자 해결 보고)</option>
+                        <option value="unsolved">해결되지 않음</option>
+                      </select>
+                    </div>
+
+                    <div class="form-group">
+                      <label class="form-label" for="res-memo">Verification Action & Notes <span id="memo-req-star" class="required hidden">* 필수</span></label>
+                      <textarea id="res-memo" class="form-control" placeholder="기록할 실제 조치 사항을 작성하세요."></textarea>
+                    </div>
+
+                    <div class="form-group" style="background-color: var(--bg-surface-subtle); padding: 12px; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
+                      <label style="display: flex; align-items: center; gap: 8px; font-size: 0.8rem; cursor: pointer;">
+                        <input type="checkbox" id="res-include-raw">
+                        <span><b>[선택]</b> 원본 로그 및 코드 원본을 기록에 함께 저장합니다.</span>
+                      </label>
+                    </div>
+
+                    <button class="btn btn-accent" id="btn-save-record" onclick="saveCurrentRecord()" style="width: 100%; padding: 10px;">💾 Save Record to Local Browser</button>
+                  </div>
+
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- TAB 2: MY HISTORY -->
+        <div id="tab-history" class="tab-content">
+          <div class="session-header">
+            <div class="session-title">
+              <span>📜 RESOLUTION HISTORY LOGS</span>
+            </div>
+            <div class="session-desc">이 브라우저의 localStorage에 저장된 해결 기록 이력입니다.</div>
+          </div>
+
+          <div class="panel-card">
+            <div class="panel-header">
+              <div class="panel-header-title">Saved Diagnostic Records</div>
+              <button class="btn btn-danger btn-sm" onclick="clearAllHistory()">Purge All History</button>
+            </div>
+            
+            <div class="panel-body">
+              <div style="display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap;">
+                <input type="text" id="hist-search" class="form-control" placeholder="Search by title or log keywords..." style="flex: 2; min-width: 180px;" oninput="renderHistoryList()">
+                <select id="hist-filter-env" class="form-control" style="flex: 1; min-width: 120px;" onchange="renderHistoryList()">
+                  <option value="all">All Platforms</option>
+                  <option value="arduino">Arduino</option>
+                  <option value="python">Python</option>
+                </select>
+                <select id="hist-filter-status" class="form-control" style="flex: 1; min-width: 120px;" onchange="renderHistoryList()">
+                  <option value="all">All Statuses</option>
+                  <option value="solved">Solved</option>
+                  <option value="unsolved">Unsolved</option>
+                  <option value="pending">Pending</option>
                 </select>
               </div>
 
-              <div id="arduino-fields">
-                <div class="form-group">
-                  <label class="form-label" for="ard-board">보드 종류</label>
-                  <select id="ard-board" class="form-control" onchange="invalidateCurrentResult()">
-                    <option value="Uno R3">Arduino Uno R3 (기본)</option>
-                    <option value="기타">기타 보드 (범위 밖)</option>
-                    <option value="모름">모름</option>
-                  </select>
-                </div>
-                <div class="form-group">
-                  <label class="form-label" for="ard-ide">Arduino IDE 버전</label>
-                  <input type="text" id="ard-ide" class="form-control" placeholder="예: 2.2.1 (모르면 비워두기)" oninput="invalidateCurrentResult()">
-                </div>
-                <div class="form-group">
-                  <label class="form-label" for="ard-stage">발생 단계</label>
-                  <select id="ard-stage" class="form-control" onchange="invalidateCurrentResult()">
-                    <option value="컴파일">컴파일 오류 (스케치 확인)</option>
-                    <option value="업로드">업로드 오류 (보드 전송)</option>
-                    <option value="시리얼 통신">시리얼 통신 문제</option>
-                    <option value="기타">기타 / 잘 모름</option>
-                  </select>
-                </div>
-                <div class="form-group">
-                  <label class="form-label" for="ard-port">선택한 포트</label>
-                  <input type="text" id="ard-port" class="form-control" placeholder="예: COM3 또는 /dev/cu.usbmodem14101" oninput="invalidateCurrentResult()">
-                </div>
-                <div class="form-group">
-                  <label class="form-label" for="ard-recognized">컴퓨터에서 보드가 인식되나요?</label>
-                  <select id="ard-recognized" class="form-control" onchange="invalidateCurrentResult()">
-                    <option value="예">예 (포트 목록에 표시됨)</option>
-                    <option value="아니오">아니오 (포트 목록에 없음)</option>
-                    <option value="모름">모름 / 확인 필요</option>
-                  </select>
-                </div>
-                <div class="form-group">
-                  <label class="form-label" for="ard-extra">추가 연결 부품 (선택)</label>
-                  <input type="text" id="ard-extra" class="form-control" placeholder="예: DHT11 온습도 센서, 서보모터" oninput="invalidateCurrentResult()">
-                </div>
-              </div>
-
-              <div id="python-fields" class="hidden">
-                <div class="form-group">
-                  <label class="form-label" for="py-ver">Python 버전</label>
-                  <input type="text" id="py-ver" class="form-control" placeholder="예: 3.10.12 (모르면 비워두기)" oninput="invalidateCurrentResult()">
-                </div>
-                <div class="form-group">
-                  <label class="form-label" for="py-tool">실행 도구</label>
-                  <select id="py-tool" class="form-control" onchange="invalidateCurrentResult()">
-                    <option value="VS Code">VS Code</option>
-                    <option value="PyCharm">PyCharm</option>
-                    <option value="Jupyter·Colab">Jupyter Notebook / Google Colab</option>
-                    <option value="터미널">기본 터미널 (cmd / bash)</option>
-                    <option value="기타">기타 / 잘 모름</option>
-                  </select>
-                </div>
-                <div class="form-group">
-                  <label class="form-label" for="py-venv">가상환경 사용 여부</label>
-                  <select id="py-venv" class="form-control" onchange="invalidateCurrentResult()">
-                    <option value="사용 안 함">사용 안 함 (기본 설치)</option>
-                    <option value="venv">venv / virtualenv</option>
-                    <option value="conda">Conda (Anaconda / Miniconda)</option>
-                    <option value="모름">모름</option>
-                  </select>
-                </div>
-                <div class="form-group">
-                  <label class="form-label" for="py-stage">발생 단계</label>
-                  <select id="py-stage" class="form-control" onchange="invalidateCurrentResult()">
-                    <option value="코드 실행">코드 실행 시 오류</option>
-                    <option value="패키지 설치">패키지 설치 (pip)</option>
-                    <option value="파일 읽기">파일 읽기/쓰기 오류</option>
-                    <option value="기타">기타 / 잘 모름</option>
-                  </select>
-                </div>
-                <div class="form-group">
-                  <label class="form-label" for="py-cmd">실행한 명령어 (선택)</label>
-                  <input type="text" id="py-cmd" class="form-control" placeholder="예: python main.py 또는 pip install pandas" oninput="invalidateCurrentResult()">
-                </div>
-              </div>
-
-              <div class="form-group">
-                <label class="form-label" for="inp-situation">오류 발생 상황 (선택)</label>
-                <input type="text" id="inp-situation" class="form-control" placeholder="예: 처음 코드를 업로드할 때 발생했습니다." oninput="invalidateCurrentResult()">
-              </div>
-
-              <div class="form-group">
-                <label class="form-label" for="inp-log">
-                  오류 메시지 및 로그 <span class="required">* 필수</span>
-                </label>
-                <textarea id="inp-log" aria-required="true" aria-describedby="log-count form-errors" class="form-control code-input" placeholder="터미널이나 아두이노 출력창의 오류 로그 전체를 복사해서 붙여넣으세요." oninput="handleCharInput()"></textarea>
-                <div id="log-count" class="char-counter">0 / 10,000자</div>
-              </div>
-
-              <div class="form-group">
-                <label class="form-label" for="inp-code">관련 코드 (선택)</label>
-                <textarea id="inp-code" aria-describedby="code-count" class="form-control code-input" placeholder="오류와 연관된 코드 조각을 입력하세요." oninput="handleCharInput()"></textarea>
-                <div id="code-count" class="char-counter">0 / 5,000자</div>
-              </div>
-
-              <div class="form-group">
-                <label class="form-label" for="inp-tried">이미 시도한 해결 방법 (선택, 최대 2,000자)</label>
-                <textarea id="inp-tried" aria-describedby="tried-count" class="form-control" placeholder="예: USB 선을 재연결해 보았으나 동일함." oninput="invalidateCurrentResult()"></textarea>
-                <div id="tried-count" class="char-counter">0 / 2,000자</div>
-              </div>
-
-              <div class="btn-group" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                <button type="button" id="btn-analyze-ai" class="btn btn-primary" style="padding: 12px;" onclick="runAnalysis('ai')">
-                  ✨ Gemini AI 오류 분석하기
-                </button>
-                <button type="button" id="btn-analyze-demo" class="btn btn-secondary" style="padding: 12px;" onclick="runAnalysis('demo')">
-                  🔍 데모 분석 (오프라인)
-                </button>
-              </div>
-            </form>
+              <div id="history-list-container"></div>
+            </div>
           </div>
         </div>
 
-        <div>
-          <div id="output-placeholder" class="card empty-state">
-            <div class="empty-state-icon">💡</div>
-            <h3>오류 분석 대기 중</h3>
-            <p class="text-sm text-muted mt-2">왼쪽 폼에 오류 로그를 입력하거나 예제를 선택한 후<br><b>[Gemini AI 오류 분석하기]</b> 또는 <b>[데모 분석]</b> 버튼을 누르면 점검 절차가 안내됩니다.</p>
+        <!-- TAB 3: USER GUIDE -->
+        <div id="tab-guide" class="tab-content">
+          <div class="session-header">
+            <div class="session-title">
+              <span>📖 WORKBENCH DOCUMENTATION</span>
+            </div>
+            <div class="session-desc">LabFix 지원 범위 및 안전 수칙 안내</div>
           </div>
 
-          <div id="output-result" class="card hidden">
-            <div class="card-title">
-              <span>진단 결과</span>
-              <span id="res-badge-demo" class="badge badge-demo">시연용 예제 안내</span>
-            </div>
+          <div class="panel-card">
+            <div class="panel-body" style="line-height: 1.7; font-size: 0.88rem;">
+              <h4 style="font-weight: 700; color: var(--text-primary);">1. Platform Diagnostic Support</h4>
+              <ul style="padding-left: 20px; color: var(--text-secondary); margin-bottom: 14px;">
+                <li><b>Arduino:</b> Uno R3 기준 (컴파일, 업로드 타임아웃, 포트 인식, 시리얼 통신)</li>
+                <li><b>Python:</b> Python 3.x 기준 (SyntaxError, IndentationError, NameError, TypeError, ModuleNotFoundError, FileNotFoundError)</li>
+              </ul>
 
-            <div id="stale-warning-banner" class="stale-warning hidden">
-              ⚠️ 입력 양식의 내용이 수정되었습니다. 현재 진단 결과는 이전 입력 기준입니다. 다시 분석을 실행하세요.
-            </div>
-
-            <div class="output-section" style="background-color: #f0fdf4; padding: 10px; border-radius: 6px; border: 1px solid #bbf7d0; margin-bottom: 16px;">
-              <div style="font-size: 0.8rem; font-weight: 700; color: #166534;">진단된 오류 유형</div>
-              <div id="res-error-type" style="font-size: 1rem; font-weight: 700; color: #15803d; margin-top: 2px;"></div>
-            </div>
-
-            <div class="output-section">
-              <div class="output-title">📋 A. 오류 요약</div>
-              <div id="res-summary" class="text-sm" style="background-color: #f1f5f9; padding: 10px; border-radius: 6px;"></div>
-            </div>
-
-            <div class="output-section">
-              <div class="output-title">🔍 B. 확인된 단서</div>
-              <ul id="res-evidence" class="text-sm" style="padding-left: 20px; color: var(--text-muted);"></ul>
-            </div>
-
-            <div class="output-section">
-              <div class="output-title">💡 C. 원인 후보 및 근거</div>
-              <div id="res-causes"></div>
-            </div>
-
-            <div class="output-section">
-              <div class="output-title">🛠️ D. 우선순위별 단계별 점검 순서</div>
-              <div id="res-steps"></div>
-            </div>
-
-            <div class="output-section">
-              <div class="output-title">❓ E. 추가 확인 질문</div>
-              <div id="res-questions" class="text-sm" style="background-color: #fffbeb; padding: 10px; border-radius: 6px; border: 1px solid #fef3c7;"></div>
-            </div>
-
-            <div class="output-section" style="border-top: 2px solid var(--border); padding-top: 16px; margin-top: 20px;">
-              <div class="output-title">💾 F. 해결 결과 기록</div>
-              
-              <div class="form-group">
-                <label class="form-label" for="res-status-select">최종 해결 상태</label>
-                <select id="res-status-select" class="form-control" onchange="toggleResolutionMemoRequirement()">
-                  <option value="pending">아직 시도하지 않음</option>
-                  <option value="solved">해결됨 (사용자 해결 보고)</option>
-                  <option value="unsolved">해결되지 않음</option>
-                </select>
+              <h4 style="font-weight: 700; color: var(--text-primary);">2. Security & Data Protection</h4>
+              <div style="background-color: var(--danger-light); border: 1px solid var(--danger-border); padding: 10px 14px; border-radius: var(--radius-md); color: #991b1b; margin-bottom: 14px;">
+                ⚠️ <b>Warning:</b> API 키, 토큰, 비밀번호 등 개인 보안 데이터는 로그 입력 전 마스킹/제거해야 합니다.
               </div>
-
-              <div class="form-group">
-                <label class="form-label" for="res-memo">실제로 한 조치 및 메모 <span id="memo-req-star" class="required hidden">* 필수</span></label>
-                <textarea id="res-memo" class="form-control" placeholder="어떤 조치를 통해 해결했는지, 또는 남아있는 문제가 무엇인지 기록하세요."></textarea>
-              </div>
-
-              <div class="form-group" style="background-color: #f8fafc; padding: 10px; border-radius: 6px; border: 1px solid var(--border);">
-                <label style="display: flex; align-items: center; gap: 8px; font-size: 0.85rem; cursor: pointer;">
-                  <input type="checkbox" id="res-include-raw">
-                  <span><b>[선택]</b> 원본 로그 및 코드 원본을 기록에 함께 저장합니다.</span>
-                </label>
-                <p class="text-sm text-muted" style="margin-top: 4px; font-size: 0.75rem;">
-                  ※ 기본적으로 원본 로그·코드는 저장하지 않습니다. 요약·환경·해결 메모에도 개인정보가 남을 수 있으므로 저장 전 확인하세요.
-                </p>
-              </div>
-
-              <button class="btn btn-primary" id="btn-save-record" onclick="saveCurrentRecord()" style="width: 100%;">💾 이 브라우저에 기록 저장하기</button>
             </div>
-
           </div>
         </div>
 
       </div>
-    </div>
-
-    <!-- TAB 2: MY RESOLUTION HISTORY -->
-    <div id="tab-history" class="tab-content">
-      <div class="card">
-        <div class="card-title">
-          <span>내 해결 기록 (이 브라우저)</span>
-          <button class="btn btn-danger btn-sm" onclick="clearAllHistory()">전체 삭제</button>
-        </div>
-
-        <div class="filter-bar">
-          <label class="visually-hidden" for="hist-search">제목·오류 내용·해결 메모 검색</label>
-          <input type="text" id="hist-search" class="form-control" placeholder="제목 또는 오류 내용 검색..." style="flex: 2; min-width: 180px;" oninput="renderHistoryList()">
-          <select id="hist-filter-env" class="form-control" style="flex: 1; min-width: 120px;" onchange="renderHistoryList()" aria-label="환경 필터">
-            <option value="all">전체 환경</option>
-            <option value="arduino">Arduino</option>
-            <option value="python">Python</option>
-          </select>
-          <select id="hist-filter-status" class="form-control" style="flex: 1; min-width: 120px;" onchange="renderHistoryList()" aria-label="해결 상태 필터">
-            <option value="all">전체 상태</option>
-            <option value="solved">해결됨</option>
-            <option value="unsolved">해결 안 됨</option>
-            <option value="pending">시도 중</option>
-          </select>
-        </div>
-
-        <div id="history-list-container"></div>
-      </div>
-    </div>
-
-    <!-- TAB 3: USER GUIDE -->
-    <div id="tab-guide" class="tab-content">
-      <div class="card">
-        <div class="card-title">사용 안내 및 지원 범위</div>
-        <div style="line-height: 1.7; font-size: 0.95rem;">
-          <h4 style="margin-top: 12px; color: var(--primary-hover);">1. 서비스 지원 범위</h4>
-          <ul style="padding-left: 20px; margin-bottom: 12px;">
-            <li><b>Arduino:</b> Arduino Uno R3 기준 (컴파일, 업로드, 보드/포트 선택, 시리얼 통신 문제)</li>
-            <li><b>Python:</b> Python 3.x 기준 (SyntaxError, IndentationError, NameError, TypeError, ModuleNotFoundError, FileNotFoundError, 실행/패키지 설치 환경 격차)</li>
-          </ul>
-
-          <h4 style="margin-top: 12px; color: var(--primary-hover);">2. Gemini AI 오류 분석 및 안전성</h4>
-          <ul style="padding-left: 20px; margin-bottom: 12px;">
-            <li><b>Serverless 연동:</b> API 키는 브라우저에 전달되지 않으며 Vercel 서버 함수(<code>/api/analyze</code>)를 거쳐 백엔드에서 안전하게 호출됩니다.</li>
-            <li><b>구조화된 검증:</b> 모든 AI 응답은 서버 측 JSON Schema 검증 및 필드 규칙 검사를 통과한 항목만 표출됩니다.</li>
-            <li><b>데이터 격리:</b> 입력된 로그 속 지시문(Prompt Injection)은 AI에게 전달되는 명령이 아니라 오직 분석 대상 데이터로 다루어집니다.</li>
-          </ul>
-
-          <h4 style="margin-top: 12px; color: var(--primary-hover);">3. 안전 수칙 및 민감 정보 보호</h4>
-          <p style="background-color: var(--danger-light); padding: 10px; border-radius: 6px; border: 1px solid #fca5a5; font-size: 0.85rem; color: #991b1b; margin-bottom: 12px;">
-            ⚠️ <b>주의:</b> API 키, 비밀번호, 개인 서버 URL, 토큰 등이 포함된 로그나 코드는 반드시 삭제한 후 붙여넣으세요.
-          </p>
-
-          <h4 style="margin-top: 12px; color: var(--primary-hover);">4. 브라우저 전용 저장소 안내</h4>
-          <ul style="padding-left: 20px;">
-            <li><b>로컬 전용 저장:</b> 모든 해결 기록은 사용자의 웹 브라우저 내 <code>localStorage</code>에만 저장되며 외부 서버로 전달되지 않습니다.</li>
-            <li><b>수행 불가 사항:</b> <mark style="background-color: #fef08a;">이 서비스는 장비 상태를 직접 검사하거나 코드를 자동 실행하지 않습니다.</mark></li>
-          </ul>
-        </div>
-      </div>
-    </div>
+    </main>
 
   </div>
 
   <!-- Detail Modal -->
   <div id="detail-modal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="modal-title" onclick="if(event.target===this) closeModal()">
     <div class="modal-content">
-      <div class="card-title">
-        <span id="modal-title">기록 상세 보기 및 수정</span>
-        <button id="modal-close" class="btn btn-secondary btn-sm" onclick="closeModal()">닫기</button>
+      <div class="panel-header" style="background: none; border-bottom: 1px solid var(--border-color); padding: 0 0 12px 0; margin-bottom: 16px;">
+        <span id="modal-title" style="font-weight: 700;">Record Inspection</span>
+        <button id="modal-close" class="btn btn-secondary btn-sm" onclick="closeModal()">Close</button>
       </div>
       <div id="modal-body" class="text-sm"></div>
     </div>
@@ -639,494 +1133,26 @@
 
   <script>
     const state = {
-      currentEnv: 'arduino',
-      arduinoForm: {
-        title: '', os: 'Windows', board: 'Uno R3', ide: '', stage: '업로드',
-        port: '', recognized: '예', extra: '', situation: '', log: '', code: '', tried: ''
-      },
-      pythonForm: {
-        title: '', os: 'Windows', ver: '', tool: 'VS Code', venv: '사용 안 함',
-        stage: '코드 실행', cmd: '', situation: '', log: '', code: '', tried: ''
-      },
-      currentAnalysis: null,
-      isStaleResult: false,
-      analysisSnapshot: null, 
-      analysisSource: '', 
-      analysisId: null,
-      savedRecordId: null, 
-      runId: 0, 
-      busy: false, 
-      saveBusy: false,
-      storageIssue: null, 
-      storageRaw: null, 
-      modalId: null,
-      previousFocus: null,
-      apiAvailable: false,
-      activeModelName: null,
-      isProductionReady: false,
-      abortController: null
-    };
-
-    const DEMO_CASES = [
-      {
-        id: 'demo-1',
-        env: 'arduino',
-        chipLabel: '1. Arduino 업로드 응답 오류',
-        data: {
-          title: 'Arduino Uno 업로드 시 avrdude sync error 발생',
-          os: 'Windows',
-          board: 'Uno R3',
-          ide: '2.2.1',
-          stage: '업로드',
-          port: 'COM3',
-          recognized: '예',
-          extra: '',
-          situation: '스케치를 업로드하려는데 계속 타임아웃 오류가 발생합니다.',
-          log: `An error occurred while uploading the sketch\navrdude: stk500_recv(): programmer is not responding\navrdude: stk500_getsync() attempt 1 of 10: not in sync: resp=0x00`,
-          code: `void setup() {\n  Serial.begin(9600);\n}\nvoid loop() {\n}`,
-          tried: 'USB 케이블을 뺐다 껴보았습니다.'
-        },
-        result: {
-          errorType: '업로드 통신 에러 (avrdude sync error)',
-          summary: '아두이노 보드와 컴퓨터 간의 업로드 통신 동기화가 실패한 전형적인 업로드 통신 에러입니다.',
-          evidence: [
-            '로그의 `stk500_recv(): programmer is not responding` 구문',
-            '입력 환경의 선택 포트: COM3 / 로그: resp=0x00 (원인 확정 아님)'
-          ],
-          causes: [
-            { name: '포트 번호 오선택 또는 드라이버 미인식', reason: '잘못된 포트 선택 가능성이 있으나 추가 확인이 필요함', check: '장치 관리자에서 COM 포트 재확인' },
-            { name: 'USB 케이블의 데이터 선 불량', reason: '전원 전송만 되고 데이터 통신이 되지 않는 불량/충전 전용 케이블', check: '다른 데이터 전송 가능 케이블로 교체' },
-            { name: 'Rx/Tx 핀(0, 1번) 간섭', reason: '0번, 1번 핀에 블루투스나 외부 모듈이 연결되어 있으면 업로드 간섭 발생', check: '업로드 시 0번, 1번 핀 연결 해제' }
-          ],
-          steps: [
-            { step: 1, title: '포트 재확인', desc: 'IDE 상단 툴 > 포트 메뉴에서 Arduino Uno로 표시된 COM 포트가 올바른지 확인', why: '잘못된 포트로 전송 시 응답이 없음', expect: '올바른 COM 포트 체크', note: '블루투스 가상 포트와 헷갈리지 않도록 주의' },
-            { step: 2, title: 'Rx/Tx(0, 1번) 핀 분리', desc: '아두이노 보드의 0번, 1번 핀에 연결된 배선이 있다면 전원을 끄고 모두 제거 후 재업로드', why: '업로드 통신 라인을 외부 모듈이 점유함', expect: '업로드 성공', note: '배선 변경 전 반드시 USB 전원을 분리하세요.' }
-          ],
-          questions: [
-            '장치 관리자에서 아두이노를 연결했을 때 COM 포트 목록이 새로고침되나요?',
-            '아두이노 보드의 L LED가 켜져 있거나 반짝이나요?'
-          ]
-        }
-      },
-      {
-        id: 'demo-2',
-        env: 'arduino',
-        chipLabel: '2. Arduino 라이브러리 미인식',
-        data: {
-          title: 'DHT.h 라이브러리를 찾을 수 없음',
-          os: 'Windows',
-          board: 'Uno R3',
-          ide: '2.2.1',
-          stage: '컴파일',
-          port: 'COM3',
-          recognized: '예',
-          extra: 'DHT11 온습도 센서',
-          situation: '온습도 예제 코드를 컴파일하는 과정에서 오류 발생',
-          log: `sketch_nov02a:1:10: fatal error: DHT.h: No such file or directory\n #include <DHT.h>\n          ^~~~~~~~\ncompilation terminated.\nexit status 1`,
-          code: `#include <DHT.h>\n#define DHTPIN 2\n#define DHTTYPE DHT11\nDHT dht(DHTPIN, DHTTYPE);`,
-          tried: '코드의 include 문구를 다시 적어보았습니다.'
-        },
-        result: {
-          errorType: '라이브러리 헤더 미인식 컴파일 오류',
-          summary: '컴파일러가 `DHT.h` 헤더 파일을 찾지 못했습니다. 설치 누락·이름·라이브러리 경로 등을 확인해야 하며, 이 로그만으로 미설치가 확정되는 것은 아닙니다.',
-          evidence: [
-            '로그의 `fatal error: DHT.h: No such file or directory` 구문'
-          ],
-          causes: [
-            { name: 'DHT sensor library 미설치', reason: '아두이노 IDE에 해당 라이브러리 파일이 내장되어 있지 않음', check: '라이브러리 매니저 검색' }
-          ],
-          steps: [
-            { step: 1, title: '라이브러리 매니저 설치', desc: '아두이노 IDE 좌측 라이브러리 아이콘(Ctrl+Shift+I) 클릭 -> "DHT sensor library" 검색 -> 설치', why: '헤더 파일을 로컬 경로에 다운로드함', expect: '설치 완료 후 컴파일 성공', note: 'Adafruit Unified Sensor 라이브러리 의존성 동시 설치 안내 시 함께 설치' }
-          ],
-          questions: [
-            'DHT sensor library 설치 시 의존성 패키지(Adafruit Unified Sensor)를 함께 설치하셨나요?'
-          ]
-        }
-      },
-      {
-        id: 'demo-3',
-        env: 'python',
-        chipLabel: '3. Python ModuleNotFoundError',
-        data: {
-          title: 'pandas 모듈을 찾을 수 없음',
-          os: 'Windows',
-          ver: '3.10',
-          tool: 'VS Code',
-          venv: '사용 안 함',
-          stage: '코드 실행',
-          cmd: 'python app.py',
-          situation: '파이썬 스크립트 실행 중 발생',
-          log: `Traceback (most recent call last):\n  File "c:/projects/app.py", line 2, in <module>\n    import pandas as pd\nModuleNotFoundError: No module named 'pandas'`,
-          code: `import os\nimport pandas as pd\n\ndf = pd.DataFrame({'a': [1,2]})\nprint(df)`,
-          tried: 'pip install pandas 명령어를 입력했으나 계속 에러가 남.'
-        },
-        result: {
-          errorType: 'Python 모듈 미설치/인터프리터 불일치 (ModuleNotFoundError)',
-          summary: '파이썬 인터프리터가 `pandas` 패키지를 설치된 패키지 목록에서 찾지 못했습니다.',
-          evidence: [
-            '로그의 `ModuleNotFoundError: No module named \'pandas\'` 구문'
-          ],
-          causes: [
-            { name: '패키지 미설치 또는 파이썬 실행 인터프리터 불일치', reason: '설치 경로와 실행 인터프리터가 다를 가능성이 있어 확인이 필요함', check: 'VS Code 하단 파이썬 인터프리터 경로 확인' }
-          ],
-          steps: [
-            { step: 1, title: '인터프리터 및 pip 확인', desc: '터미널에서 `python -m pip install pandas` 실행', why: '터미널의 python 인터프리터에 연결된 pip를 사용함.', expect: '설치 여부를 확인한 뒤 import pandas 성공 여부 확인', note: 'VS Code 우측 하단의 Python 버전 클릭 후 올바른 인터프리터 선택' }
-          ],
-          questions: [
-            'VS Code 하단 바에 표시된 파이썬 인터프리터 버전과 터미널 버전이 동일한가요?'
-          ]
-        }
-      },
-      {
-        id: 'demo-4',
-        env: 'python',
-        chipLabel: '4. Python FileNotFoundError',
-        data: {
-          title: 'data.csv 파일을 찾을 수 없음',
-          os: 'macOS',
-          ver: '3.11',
-          tool: 'VS Code',
-          venv: 'venv',
-          stage: '파일 읽기',
-          cmd: 'python main.py',
-          situation: '같은 폴더에 있는 CSV 파일을 읽으려고 할 때 오류 발생',
-          log: `Traceback (most recent call last):\n  File "/Users/user/project/main.py", line 5, in <module>\n    with open('data.csv', 'r') as f:\nFileNotFoundError: [Errno 2] No such file or directory: 'data.csv'`,
-          code: `import os\n\nwith open('data.csv', 'r') as f:\n    data = f.read()`,
-          tried: 'main.py와 data.csv가 같은 폴더에 있는지 눈으로 확인했습니다.'
-        },
-        result: {
-          errorType: '파일 경로 누락 (FileNotFoundError)',
-          summary: '파이썬이 요청한 상대 경로에서 `data.csv`를 열지 못했습니다. 실제 파일명과 실행 작업 디렉토리 등을 확인해야 합니다.',
-          evidence: [
-            '로그의 `FileNotFoundError: [Errno 2] No such file or directory: \'data.csv\'`'
-          ],
-          causes: [
-            { name: '작업 디렉토리(CWD) 위치 불일치', reason: '파이썬 파일 위치와 터미널 실행 위치가 다름', check: '`import os; print(os.getcwd())`로 위치 확인' }
-          ],
-          steps: [
-            { step: 1, title: '절대 경로 또는 os.path 기반 상대 경로 사용', desc: '코드 내 경로를 `os.path.join(os.path.dirname(__file__), "data.csv")`로 수정', why: '스크립트 파일 기준 상대 경로 확정', expect: '의도한 파일 경로에서 파일을 읽을 수 있는지 확인', note: '노트북 환경에는 __file__ 변수가 없을 수 있으므로 유의하세요.' }
-          ],
-          questions: [
-            '터미널에서 `pwd` 명령어를 입력했을 때 data.csv가 있는 폴더 위치인가요?'
-          ]
-        }
-      }
-    ];
-
-    const STORAGE_KEY = 'labfix_history_v1';
-    const MAX_STORAGE_ITEMS = 30;
-    const LIMITS = { title: 120, log: 10000, code: 5000, tried: 2000 };
-    const FIELD_NAMES = { title: '문제 제목', log: '오류 로그', code: '관련 코드', tried: '이미 시도한 조치' };
-    const ENV_KEYS = {
-      arduino: ['os', 'board', 'ide', 'stage', 'port', 'recognized', 'extra'],
-      python: ['os', 'ver', 'tool', 'venv', 'stage', 'cmd']
-    };
-
-    const $ = id => document.getElementById(id);
-    const copy = value => JSON.parse(JSON.stringify(value));
-
-    function defaultForm(env) {
-      return env === 'arduino'
-        ? { title:'', os:'Windows', board:'Uno R3', ide:'', stage:'업로드', port:'', recognized:'예', extra:'', situation:'', log:'', code:'', tried:'' }
-        : { title:'', os:'Windows', ver:'', tool:'VS Code', venv:'사용 안 함', stage:'코드 실행', cmd:'', situation:'', log:'', code:'', tried:'' };
-    }
-
-    function element(tag, text, className) {
-      const el = document.createElement(tag);
-      if (text !== undefined && text !== null) el.textContent = String(text);
-      if (className) el.className = className;
-      return el;
-    }
-
-    function message(id, text) {
-      const el = $(id);
-      el.textContent = text || '';
-      el.classList.toggle('hidden', !text);
-    }
-
-    function newId() {
-      return 'rec_' + (globalThis.crypto && typeof crypto.randomUUID === 'function'
-        ? crypto.randomUUID() : Date.now() + '_' + Math.random().toString(36).slice(2));
-    }
-
-    // Consolidated Cancel Function for Active Asynchronous Tasks
-    function cancelActiveRequest() {
-      if (state.abortController) {
-        state.abortController.abort();
-        state.abortController = null;
-      }
-      state.runId++;
-      if (state.busy) {
-        setBusy(false);
-      }
-    }
-
-    function switchTab(tabId) {
-      if (!['analyze', 'history', 'guide'].includes(tabId)) return;
-      if (tabId !== 'analyze') {
-        cancelActiveRequest();
-      }
-      document.querySelectorAll('.nav-btn').forEach(btn => {
-        const selected = btn.dataset.tab === tabId;
-        btn.classList.toggle('active', selected);
-        if (selected) btn.setAttribute('aria-current', 'page');
-        else btn.removeAttribute('aria-current');
-      });
-      document.querySelectorAll('.tab-content').forEach(el => el.classList.toggle('active', el.id === 'tab-' + tabId));
-      if (tabId === 'history') renderHistoryList();
-    }
-
-    function collectInput() {
-      const env = state.currentEnv;
-      const f = {};
-      for (const key of ['title','os','situation','log','code','tried']) f[key] = $('inp-' + key).value;
-      const ids = env === 'arduino'
-        ? { board:'ard-board', ide:'ard-ide', stage:'ard-stage', port:'ard-port', recognized:'ard-recognized', extra:'ard-extra' }
-        : { ver:'py-ver', tool:'py-tool', venv:'py-venv', stage:'py-stage', cmd:'py-cmd' };
-      for (const [key,id] of Object.entries(ids)) f[key] = $(id).value;
-      return { env, form: f };
-    }
-
-    function saveFormDataToState() {
-      const input = collectInput();
-      state[input.env === 'arduino' ? 'arduinoForm' : 'pythonForm'] = copy(input.form);
-      return input;
-    }
-
-    function snapshotsEqual(a, b) {
-      return !!a && !!b && a.env === b.env && Object.keys(a.form).length === Object.keys(b.form).length
-        && Object.keys(a.form).every(key => a.form[key] === b.form[key]);
-    }
-
-    function updateCounters() {
-      for (const [key,id] of [['log','log-count'], ['code','code-count'], ['title','title-count'], ['tried','tried-count']]) {
-        const n = $('inp-' + key).value.length;
-        const invalid = n > LIMITS[key];
-        $(id).textContent = n.toLocaleString() + ' / ' + LIMITS[key].toLocaleString() + '자' + (invalid ? ' — 초과, 내용을 줄여 주세요' : '');
-        $(id).classList.toggle('counter-error', invalid);
-        $('inp-' + key).setAttribute('aria-invalid', invalid ? 'true' : 'false');
-      }
-    }
-
-    function restoreFormDataFromState() {
-      const f = state[state.currentEnv === 'arduino' ? 'arduinoForm' : 'pythonForm'];
-      for (const key of ['title','os','situation','log','code','tried']) $('inp-' + key).value = f[key] || '';
-      const ids = state.currentEnv === 'arduino'
-        ? {board:'ard-board',ide:'ard-ide',stage:'ard-stage',port:'ard-port',recognized:'ard-recognized',extra:'ard-extra'}
-        : {ver:'py-ver',tool:'py-tool',venv:'py-venv',stage:'py-stage',cmd:'py-cmd'};
-      for (const [key,id] of Object.entries(ids)) $(id).value = f[key] || '';
-      updateCounters();
+    function toggleExtraEnvFields() {
+      const container = $('extra-env-container');
+      const icon = $('extra-env-toggle-icon');
+      const isHidden = container.classList.contains('hidden');
+      container.classList.toggle('hidden', !isHidden);
+      icon.textContent = isHidden ? '▲' : '▼';
     }
 
     function setBusy(busy, mode = 'ai') {
       state.busy = busy;
       $('btn-analyze-ai').disabled = busy;
       $('btn-analyze-demo').disabled = busy;
-      $('btn-analyze-ai').textContent = busy && mode === 'ai' ? '⏳ Gemini AI 분석 중...' : '✨ Gemini AI 오류 분석하기';
-      $('btn-analyze-demo').textContent = busy && mode === 'demo' ? '⏳ 데모 준비 중...' : '🔍 데모 분석 (오프라인)';
+      $('cancel-bar').classList.toggle('hidden', !busy);
+
+      if (mode === 'ai') {
+        $('btn-analyze-ai').textContent = busy ? '⏳ Analyzing via Gemini...' : '✨ Run Gemini AI Diagnostic';
+      } else {
+        $('btn-analyze-demo').textContent = busy ? '⏳ Loading Demo...' : '🔍 Offline Demo Mode';
+      }
       $('analysis-form').setAttribute('aria-busy', String(busy));
-    }
-
-    function invalidateCurrentResult() {
-      cancelActiveRequest();
-      updateCounters();
-      if (state.currentAnalysis) {
-        state.isStaleResult = true;
-        $('stale-warning-banner').textContent = '⚠️ 입력이나 환경이 변경되었습니다. 아래 결과는 이전 ' + state.analysisSnapshot.env.toUpperCase() + ' 입력 기준입니다. 다시 분석하기 전에는 저장할 수 없습니다.';
-        $('stale-warning-banner').classList.remove('hidden');
-        $('btn-save-record').disabled = true;
-      }
-      message('form-errors', '');
-    }
-
-    function handleCharInput() {
-      invalidateCurrentResult();
-    }
-
-    function validateInput(input) {
-      const errors = [];
-      if (!input.form.log.trim()) errors.push({key:'log', text:'오류 메시지 및 로그를 입력해 주세요. 공백만 입력할 수 없습니다.'});
-      for (const [key,max] of Object.entries(LIMITS)) {
-        if (input.form[key].length > max) errors.push({key, text:FIELD_NAMES[key] + '는 ' + max.toLocaleString() + '자 이하여야 합니다. 입력은 잘리지 않았습니다.'});
-      }
-      updateCounters();
-      message('form-errors', errors.map(e=>e.text).join('\n'));
-      if (errors.length) {
-        $('inp-' + errors[0].key).setAttribute('aria-invalid','true');
-        $('inp-' + errors[0].key).focus();
-      }
-      return errors.length === 0;
-    }
-
-    function setEnvironment(env) {
-      if (!['arduino','python'].includes(env) || state.currentEnv === env) return;
-      cancelActiveRequest();
-      saveFormDataToState();
-      state.currentEnv = env;
-      for (const name of ['arduino','python']) {
-        $('env-btn-' + name).classList.toggle('active',name===env);
-        $('env-btn-' + name).setAttribute('aria-pressed',String(name===env));
-        $(name + '-fields').classList.toggle('hidden',name!==env);
-      }
-      restoreFormDataFromState();
-      renderExampleChips();
-      invalidateCurrentResult();
-    }
-
-    function renderExampleChips() {
-      const container = $('example-chips-container');
-      container.replaceChildren();
-      DEMO_CASES.filter(c=>c.env===state.currentEnv).forEach(c=>{
-        const btn=element('button',c.chipLabel,'chip'); btn.type='button';
-        btn.addEventListener('click',()=>loadDemoCase(c.id)); container.append(btn);
-      });
-    }
-
-    function clearCurrentResult() {
-      cancelActiveRequest();
-      state.currentAnalysis=null; state.analysisSnapshot=null; state.analysisSource='';
-      state.isStaleResult=false; state.analysisId=null; state.savedRecordId=null;
-      $('output-placeholder').classList.remove('hidden');
-      $('output-result').classList.add('hidden');
-      $('btn-save-record').disabled=true;
-    }
-
-    function resetFormWithConfirm() {
-      const input=collectInput();
-      const d=defaultForm(input.env);
-      const changed=Object.keys(input.form).some(key=>input.form[key]!==d[key]);
-      if ((changed || state.currentAnalysis) && !confirm('작성 중인 입력과 현재 결과가 초기화됩니다. 저장된 기록은 삭제되지 않습니다. 계속하시겠습니까?')) return;
-      cancelActiveRequest();
-      state[input.env==='arduino'?'arduinoForm':'pythonForm']=d;
-      restoreFormDataFromState(); clearCurrentResult(); message('form-errors','');
-    }
-
-    function loadDemoCase(caseId) {
-      const demo=DEMO_CASES.find(c=>c.id===caseId); if (!demo) return;
-      cancelActiveRequest();
-      if (state.currentEnv!==demo.env) setEnvironment(demo.env);
-      state[demo.env==='arduino'?'arduinoForm':'pythonForm']=copy(demo.data);
-      restoreFormDataFromState();
-      message('form-errors','');
-      displayAnalysisResult(demo.result,'시연용 예제: '+demo.chipLabel,collectInput(), 'demo');
-    }
-
-    async function checkApiAvailability() {
-      try {
-        const response = await fetch('/api/analyze', { method: 'GET' });
-        if (response.ok) {
-          const resData = await response.json();
-          state.apiAvailable = resData.hasApiKey || false;
-          state.activeModelName = resData.model || 'gemini-2.5-flash';
-          state.isProductionReady = resData.isProductionReady || false;
-
-          const badge = $('banner-mode-badge');
-          const text = $('banner-mode-text');
-
-          if (state.apiAvailable) {
-            badge.textContent = state.isProductionReady ? 'AI 연동 준비됨' : 'AI 구성 감지 (실연동 미검증)';
-            badge.className = 'badge badge-ai';
-            text.textContent = 'Vercel API (' + state.activeModelName + ')';
-          } else {
-            badge.textContent = 'API 키 미설정';
-            badge.className = 'badge badge-demo';
-            text.textContent = '서버 환경변수 필요 (오프라인 데모 이용 가능)';
-          }
-        } else {
-          throw new Error('API Endpoint Not Available');
-        }
-      } catch (e) {
-        state.apiAvailable = false;
-        $('banner-mode-badge').textContent = '데모 전용';
-        $('banner-mode-badge').className = 'badge badge-demo';
-        $('banner-mode-text').textContent = '서버 API 미연결 (오프라인 데모 사용 가능)';
-      }
-    }
-
-    async function runAnalysis(mode) {
-      cancelActiveRequest();
-
-      const input = saveFormDataToState();
-      if (!validateInput(input)) return;
-
-      const token = state.runId;
-      const controller = new AbortController();
-      state.abortController = controller;
-
-      setBusy(true, mode);
-
-      try {
-        if (mode === 'demo') {
-          await new Promise(resolve => setTimeout(resolve, 150));
-          if (controller.signal.aborted || token !== state.runId || !snapshotsEqual(input, collectInput())) return;
-
-          const matched = DEMO_CASES.find(c => c.env === input.env && Object.keys(input.form).every(k => input.form[k] === c.data[k]));
-          if (matched) {
-            displayAnalysisResult(matched.result, '시연용 예제: ' + matched.chipLabel, input, 'demo');
-          } else {
-            displayAnalysisResult(generateRuleBasedAnalysis(input.form.log, input.env), '규칙 기반 예시 안내 (오프라인)', input, 'demo');
-          }
-          return;
-        }
-
-        const response = await fetch('/api/analyze', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          signal: controller.signal,
-          body: JSON.stringify({
-            env: input.env,
-            environmentDetails: input.form,
-            errorLog: input.form.log,
-            codeSnippet: input.form.code,
-            attemptedActions: input.form.tried
-          })
-        });
-
-        const resData = await response.json();
-
-        if (controller.signal.aborted || token !== state.runId || !snapshotsEqual(input, collectInput())) {
-          return;
-        }
-
-        if (!response.ok || !resData.success) {
-          throw new Error(resData.error || 'Gemini API 분석 요청이 실패했습니다.');
-        }
-
-        const modelLabel = resData.model ? 'Gemini AI (' + resData.model + ')' : 'Gemini AI 실시간 분석';
-        displayAnalysisResult(resData.data, modelLabel, input, 'ai');
-
-      } catch (err) {
-        if (err.name === 'AbortError') {
-          return;
-        }
-        if (token === state.runId) {
-          message('form-errors', '❌ AI 분석 중 오류가 발생했습니다: ' + err.message);
-        }
-      } finally {
-        if (token === state.runId) {
-          state.abortController = null;
-          setBusy(false, mode);
-        }
-      }
-    }
-
-    function generateRuleBasedAnalysis(log, env = state.currentEnv) {
-      const lower = log.toLowerCase();
-      let errorType = '일반 오류 로그';
-      let summary = '현재는 오프라인 데모 모드입니다. 이 입력의 실제 AI 분석은 [Gemini AI 오류 분석하기] 버튼을 통해 연동됩니다.';
-      let evidence = ['입력 환경: ' + env.toUpperCase() + ' / 사전 정의된 예제와 완전히 일치하지 않음'];
-      let causes = [];
-      let steps = [];
-
-      if (env === 'python' && /\bsyntaxerror\b/.test(lower)) {
-        errorType = 'SyntaxError (문법 오류)';
-        summary = 'SyntaxError 키워드가 포함된 오류 로그입니다. 아래는 파이썬 일반 문법 점검 절차입니다.';
-        evidence = ['로그에서 SyntaxError 키워드 감지'];
-        causes = [{ name: '문법 기호 오기입 또는 괄호 누락', reason: '파이썬 인터프리터가 문법을 해석하지 못함', check: '전체 Traceback에서 지목된 줄의 이전 줄 확인' }];
-        steps = [{ step: 1, title: '구문 및 괄호 점검', desc: '콜론(:), 따옴표, 괄호가 올바르게 닫혔는지 확인하세요.', why: '문법 불일치 수정', expect: '문법 오류 해결', note: 'AI 분석이 아닌 단순 키워드 매칭 안내입니다.' }];
-      }
-
-      return { errorType, summary, evidence, causes, steps, questions: ['전체 Traceback 로그가 올바르게 포함되었는지 확인해 주세요.'] };
     }
 
     function displayAnalysisResult(resultData, badgeText, snapshot = collectInput(), mode = 'ai') {
@@ -1140,6 +1166,9 @@
       $('output-placeholder').classList.add('hidden'); 
       $('output-result').classList.remove('hidden');
       $('stale-warning-banner').classList.add('hidden');
+
+      // Smooth scroll into output view for better UX feedback
+      $('output-result').scrollIntoView({ behavior: 'smooth', block: 'start' });
 
       $('res-badge-demo').textContent = badgeText;
       $('res-badge-demo').className = 'badge ' + (mode === 'ai' ? 'badge-ai' : 'badge-demo');
@@ -1165,7 +1194,7 @@
           if (s[key]) block.append(element('div', label + ': ' + s[key], 'step-meta'));
         }
         const group = element('div', undefined, 'step-action-group');
-        const label = element('label', '실제 점검 결과:'); 
+        const label = element('label', '실제 점검 결과:', 'text-sm'); 
         label.htmlFor = 'step-select-' + idx;
         const select = element('select', undefined, 'form-control step-status-select'); 
         select.id = label.htmlFor;
@@ -1179,13 +1208,13 @@
 
       const ul = element('ul'); ul.style.paddingLeft = '18px';
       (resultData.questions || []).forEach(text => ul.append(element('li', text)));
-      $('res-questions').replaceChildren(ul, element('p', '※ AI가 제시한 원인은 추론 결과이며, 실제 해결 여부는 아래 F항목에서 직접 검증 후 저장하세요.', 'text-sm text-muted mt-2'));
+      $('res-questions').replaceChildren(ul, element('p', '※ AI가 제시한 원인은 추론 결과이며, 실제 해결 여부는 아래 F항목에서 검증 후 저장하세요.', 'text-sm text-muted mt-2'));
 
       $('res-status-select').value = 'pending';
       $('res-memo').value = '';
       $('res-include-raw').checked = false;
       $('btn-save-record').disabled = false; 
-      $('btn-save-record').textContent = '💾 이 브라우저에 기록 저장하기';
+      $('btn-save-record').textContent = '💾 Save Record to Local Browser';
       
       toggleResolutionMemoRequirement();
     }
@@ -1235,7 +1264,7 @@
         updateStorageNotice();
         return list;
       } catch (err) {
-        state.storageIssue = { kind: 'corrupt', message: '저장된 로컬 기록을 읽을 수 없습니다. 원본 보존을 위해 무단 삭제/초기화를 하지 않았습니다.' };
+        state.storageIssue = { kind: 'corrupt', message: '저장된 로컬 기록을 읽을 수 없습니다.' };
         updateStorageNotice();
         return null;
       }
@@ -1251,7 +1280,7 @@
         $('history-count').textContent = String(array.length);
         return true;
       } catch (err) {
-        state.storageIssue = { kind: 'write', message: '브라우저 저장 용량 초과 또는 접근 권한 제한으로 저장에 실패했습니다.' };
+        state.storageIssue = { kind: 'write', message: '브라우저 저장 용량 초과로 저장에 실패했습니다.' };
         updateStorageNotice();
         alert(state.storageIssue.message);
         return false;
@@ -1260,7 +1289,7 @@
 
     function updateStorageNotice() {
       const issue = state.storageIssue;
-      $('storage-state-label').textContent = issue ? '브라우저 저장 제한' : '이 브라우저에만 저장 (localStorage)';
+      $('storage-state-label').textContent = issue ? 'Storage Restrained' : 'localStorage (Current Browser)';
       message('storage-warning', issue ? issue.message : '');
     }
 
@@ -1320,7 +1349,7 @@
 
       if (saveHistoryToStorage(list)) {
         state.savedRecordId = record.id;
-        $('btn-save-record').textContent = '💾 이 기록의 수정 사항 저장';
+        $('btn-save-record').textContent = '💾 Update Record in Browser';
         alert('기록이 브라우저에 저장되었습니다.');
         switchTab('history');
       }
@@ -1331,7 +1360,7 @@
       container.replaceChildren();
       const list = getHistoryFromStorage();
       if (list === null) {
-        container.append(element('p', '저장된 기록을 안전하게 읽을 수 없습니다. 오손 방지를 위해 무단 초기화가 보류되었습니다.', 'stale-warning'));
+        container.append(element('p', '저장된 기록을 안전하게 읽을 수 없습니다.', 'stale-warning'));
         return;
       }
 
@@ -1350,30 +1379,54 @@
         return;
       }
 
+      const table = element('table', undefined, 'history-table');
+      const thead = element('thead');
+      const trHead = element('tr');
+      ['Platform', 'Issue Title', 'Status', 'Date', 'Actions'].forEach(h => trHead.append(element('th', h)));
+      thead.append(trHead);
+      table.append(thead);
+
+      const tbody = element('tbody');
       filtered.forEach(r => {
-        const card = element('div', undefined, 'history-item');
-        const header = element('div', undefined, 'history-header');
-        const info = element('div');
-        info.append(element('span', r.envType.toUpperCase(), 'tag tag-' + r.envType), document.createTextNode(' '));
-        const labels = { pending: '시도 중', solved: '해결됨 (사용자 보고)', unsolved: '해결 안 됨' };
-        info.append(element('span', labels[r.resolutionStatus], 'tag tag-' + r.resolutionStatus), document.createTextNode(' '));
-        info.append(element('span', r.title, 'history-title'));
+        const tr = element('tr');
+        
+        // Platform
+        const tdEnv = element('td');
+        tdEnv.append(element('span', r.envType.toUpperCase(), 'tag tag-' + r.envType));
+        tr.append(tdEnv);
 
-        const controls = element('div', undefined, 'btn-group');
-        const view = element('button', '상세 및 수정', 'btn btn-outline btn-sm');
+        // Title
+        const tdTitle = element('td');
+        tdTitle.append(element('div', r.title, 'history-title'));
+        tdTitle.append(element('div', r.summary.slice(0, 60) + '...', 'text-sm text-muted'));
+        tr.append(tdTitle);
+
+        // Status
+        const tdStatus = element('td');
+        const labels = { pending: 'Pending', solved: 'Solved', unsolved: 'Unsolved' };
+        tdStatus.append(element('span', labels[r.resolutionStatus], 'tag tag-' + r.resolutionStatus));
+        tr.append(tdStatus);
+
+        // Date
+        const tdDate = element('td', new Date(r.createdAt).toLocaleDateString('ko-KR'));
+        tr.append(tdDate);
+
+        // Actions
+        const tdActions = element('td');
+        const btnGrp = element('div', undefined, 'btn-group');
+        const view = element('button', 'Inspect', 'btn btn-secondary btn-sm');
         view.addEventListener('click', () => viewRecordDetail(r.id));
-        const del = element('button', '삭제', 'btn btn-danger btn-sm');
+        const del = element('button', 'Delete', 'btn btn-danger btn-sm');
         del.addEventListener('click', () => deleteRecord(r.id));
-        controls.append(view, del);
+        btnGrp.append(view, del);
+        tdActions.append(btnGrp);
+        tr.append(tdActions);
 
-        header.append(info, controls);
-        card.append(header);
-        card.append(element('div', '📅 생성: ' + new Date(r.createdAt).toLocaleString('ko-KR') + (r.updatedAt !== r.createdAt ? ' (수정: ' + new Date(r.updatedAt).toLocaleString('ko-KR') + ')' : '') + ' | OS: ' + r.os + ' | 출처: ' + r.analysisSource, 'history-meta'));
-        card.append(element('p', '요약: ' + r.summary, 'text-sm'));
-        if (r.resolutionMemo) card.append(element('p', '해결 메모: ' + r.resolutionMemo, 'text-sm mt-2'));
-
-        container.append(card);
+        tbody.append(tr);
       });
+
+      table.append(tbody);
+      container.append(table);
     }
 
     function viewRecordDetail(id) {
@@ -1394,7 +1447,7 @@
         element('p', '분석 출처: ' + r.analysisSource)
       );
 
-      body.append(element('h3', '오류 유형: ' + (r.errorType || '기본'), 'output-title mt-4'));
+      body.append(element('h3', '오류 유형: ' + (r.errorType || '기본'), 'report-section-title mt-4'));
       body.append(element('p', r.summary));
 
       const statusGroup = element('div', undefined, 'form-group mt-4');
@@ -1423,7 +1476,7 @@
       saveBtn.addEventListener('click', () => updateRecordInModal(id));
       body.append(saveBtn);
 
-      body.append(element('h3', '단계별 점검 항목 및 저장 상태', 'output-title mt-4'));
+      body.append(element('h3', '단계별 점검 항목 및 저장 상태', 'report-section-title mt-4'));
       (r.checkSteps || []).forEach(s => {
         const block = element('div', undefined, 'step-card');
         block.append(element('div', '단계 ' + s.step + ': ' + s.title + ' [' + (s.status || '미시도') + ']', 'step-header'));
@@ -1432,11 +1485,11 @@
       });
 
       if (r.includeRawData) {
-        body.append(element('h3', '저장된 원본 로그', 'output-title mt-4'));
-        body.append(element('pre', r.rawLog, 'code-block'));
+        body.append(element('h3', '저장된 원본 로그', 'report-section-title mt-4'));
+        body.append(element('pre', r.rawLog, 'code-editor-input'));
         if (r.rawCode) {
-          body.append(element('h3', '저장된 원본 코드', 'output-title mt-4'));
-          body.append(element('pre', r.rawCode, 'code-block'));
+          body.append(element('h3', '저장된 원본 코드', 'report-section-title mt-4'));
+          body.append(element('pre', r.rawCode, 'code-editor-input'));
         }
       }
 
