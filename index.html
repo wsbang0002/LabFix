@@ -1132,27 +1132,663 @@
   </div>
 
   <script>
+    // ---------------------------------------------------------------------
+    // LabFix application state and shared helpers
+    // ---------------------------------------------------------------------
     const state = {
+      currentEnv: 'arduino',
+      arduinoForm: {
+        title: '', os: 'Windows', board: 'Uno R3', ide: '', stage: '업로드',
+        port: '', recognized: '예', extra: '', situation: '', log: '', code: '', tried: ''
+      },
+      pythonForm: {
+        title: '', os: 'Windows', ver: '', tool: 'VS Code', venv: '사용 안 함',
+        stage: '코드 실행', cmd: '', situation: '', log: '', code: '', tried: ''
+      },
+      currentAnalysis: null,
+      isStaleResult: false,
+      analysisSnapshot: null,
+      analysisSource: '',
+      analysisId: null,
+      savedRecordId: null,
+      runId: 0,
+      busy: false,
+      activeMode: 'ai',
+      saveBusy: false,
+      storageIssue: null,
+      storageRaw: null,
+      modalId: null,
+      previousFocus: null,
+      apiAvailable: false,
+      activeModelName: null,
+      isProductionReady: false,
+      abortController: null
+    };
+
+    const STORAGE_KEY = 'labfix_history_v1';
+    const MAX_STORAGE_ITEMS = 30;
+    const LIMITS = { title: 120, log: 10000, code: 5000, tried: 2000 };
+    const FIELD_NAMES = {
+      title: '문제 제목',
+      log: '오류 로그',
+      code: '관련 코드',
+      tried: '이미 시도한 조치'
+    };
+    const ENV_KEYS = {
+      arduino: ['os', 'board', 'ide', 'stage', 'port', 'recognized', 'extra'],
+      python: ['os', 'ver', 'tool', 'venv', 'stage', 'cmd']
+    };
+
+    const $ = id => document.getElementById(id);
+    const copy = value => value == null ? value : JSON.parse(JSON.stringify(value));
+
+    const DEMO_CASES = [
+      {
+        id: 'demo-1',
+        env: 'arduino',
+        chipLabel: '1. Arduino 업로드 응답 오류',
+        description: 'avrdude sync error / 포트·케이블 점검',
+        data: {
+          title: 'Arduino Uno 업로드 시 avrdude sync error 발생',
+          os: 'Windows', board: 'Uno R3', ide: '2.2.1', stage: '업로드',
+          port: 'COM3', recognized: '예', extra: '',
+          situation: '스케치를 업로드하려는데 타임아웃 오류가 발생합니다.',
+          log: 'An error occurred while uploading the sketch\navrdude: stk500_recv(): programmer is not responding\navrdude: stk500_getsync() attempt 1 of 10: not in sync: resp=0x00',
+          code: 'void setup() {\n  Serial.begin(9600);\n}\nvoid loop() {\n}',
+          tried: 'USB 케이블을 뺐다 다시 연결했습니다.'
+        },
+        result: {
+          errorType: '업로드 통신 오류 (avrdude sync error)',
+          summary: '컴퓨터와 Arduino 보드 사이의 업로드 통신이 동기화되지 않은 상황입니다. 포트 선택, USB 데이터 케이블, 업로드 통신 핀을 순서대로 확인해야 합니다.',
+          evidence: [
+            'stk500_recv(): programmer is not responding 메시지가 확인됩니다.',
+            'stk500_getsync()와 resp=0x00이 함께 나타납니다.'
+          ],
+          causes: [
+            { name: '잘못된 포트 선택 또는 드라이버 문제', reason: 'IDE가 실제 보드가 연결된 포트와 다른 포트를 사용하고 있을 수 있습니다.', check: '장치 관리자와 IDE의 도구 > 포트 항목을 비교합니다.' },
+            { name: 'USB 데이터 케이블 문제', reason: '충전 전용 케이블이거나 데이터 선에 문제가 있을 수 있습니다.', check: '데이터 전송이 가능한 다른 USB 케이블로 교체합니다.' },
+            { name: '0번·1번 핀의 외부 회로 간섭', reason: 'Rx/Tx 통신 핀에 연결된 모듈이 업로드 통신을 방해할 수 있습니다.', check: '전원을 분리한 뒤 0번·1번 핀의 외부 배선을 제거합니다.' }
+          ],
+          steps: [
+            { step: 1, title: '보드와 포트 선택 확인', desc: 'IDE의 도구 > 보드에서 Arduino Uno를 선택하고 도구 > 포트에서 보드가 연결된 포트를 선택합니다.', why: '다른 포트로 업로드하면 보드의 응답을 받을 수 없습니다.', expect: '올바른 COM 포트가 선택된 상태를 확인합니다.', note: '장치 관리자에서 보드를 분리·연결할 때 새로 나타나는 포트를 비교하세요.' },
+            { step: 2, title: 'USB 케이블 교체', desc: '데이터 전송이 가능한 정상 USB 케이블로 교체한 뒤 다시 업로드합니다.', why: '전원만 공급되는 케이블은 업로드 데이터 통신을 수행하지 못합니다.', expect: '업로드 진행 또는 오류 메시지 변화 여부를 확인합니다.', note: 'USB 허브 대신 PC 본체 포트에 직접 연결해 보세요.' },
+            { step: 3, title: 'Rx/Tx 핀 분리', desc: 'USB 전원을 분리하고 0번·1번 핀에 연결된 외부 모듈을 제거한 뒤 재시도합니다.', why: '외부 회로가 UART 업로드 통신을 점유할 수 있습니다.', expect: '업로드가 정상 완료되는지 확인합니다.', note: '배선 변경은 반드시 전원을 분리한 상태에서 진행하세요.' }
+          ],
+          questions: ['장치 관리자에서 Arduino를 연결했을 때 COM 포트가 새로 나타나나요?', 'USB 케이블을 교체해도 동일한 오류가 발생하나요?']
+        }
+      },
+      {
+        id: 'demo-2',
+        env: 'arduino',
+        chipLabel: '2. Arduino 라이브러리 미인식',
+        description: 'DHT.h 헤더 파일을 찾을 수 없음',
+        data: {
+          title: 'DHT.h 라이브러리를 찾을 수 없음',
+          os: 'Windows', board: 'Uno R3', ide: '2.2.1', stage: '컴파일',
+          port: 'COM3', recognized: '예', extra: 'DHT11 온습도 센서',
+          situation: '온습도 센서 예제 코드를 컴파일할 때 오류가 발생합니다.',
+          log: 'sketch.ino:1:10: fatal error: DHT.h: No such file or directory\n #include <DHT.h>\n          ^~~~~~~~\ncompilation terminated.\nexit status 1',
+          code: '#include <DHT.h>\n#define DHTPIN 2\n#define DHTTYPE DHT11\nDHT dht(DHTPIN, DHTTYPE);',
+          tried: 'include 문구를 다시 입력해 보았습니다.'
+        },
+        result: {
+          errorType: '라이브러리 헤더 미인식 컴파일 오류',
+          summary: '컴파일러가 DHT.h 헤더 파일을 찾지 못했습니다. 라이브러리 설치 여부, 라이브러리 이름, 설치 경로를 확인해야 합니다.',
+          evidence: ['fatal error: DHT.h: No such file or directory 메시지가 확인됩니다.', '오류가 코드 실행 전 컴파일 단계에서 발생했습니다.'],
+          causes: [
+            { name: 'DHT sensor library 미설치', reason: '현재 Arduino IDE의 라이브러리 경로에 DHT.h 파일이 없을 수 있습니다.', check: '라이브러리 매니저에서 DHT sensor library 설치 여부를 확인합니다.' },
+            { name: '라이브러리 설치 환경 불일치', reason: '다른 IDE 환경이나 사용자 계정에 라이브러리를 설치했을 수 있습니다.', check: '현재 사용 중인 IDE의 라이브러리 경로를 확인합니다.' }
+          ],
+          steps: [
+            { step: 1, title: '라이브러리 매니저에서 설치', desc: 'Arduino IDE의 라이브러리 매니저를 열고 DHT sensor library를 검색해 설치합니다.', why: '컴파일러가 참조할 헤더 파일을 설치하기 위한 단계입니다.', expect: '설치 후 다시 컴파일했을 때 DHT.h 오류가 사라지는지 확인합니다.', note: '설치 과정에서 Adafruit Unified Sensor 의존성 설치가 안내되면 함께 설치합니다.' },
+            { step: 2, title: 'include 구문과 라이브러리 이름 확인', desc: '코드의 #include <DHT.h> 철자와 대소문자를 확인합니다.', why: '헤더 파일 이름이 일치하지 않으면 설치되어 있어도 찾지 못할 수 있습니다.', expect: '헤더 파일 탐색 오류가 해결되는지 확인합니다.', note: '라이브러리를 중복 설치하기 전에 기존 설치 경로를 먼저 확인하세요.' }
+          ],
+          questions: ['라이브러리 매니저에서 DHT sensor library가 설치됨으로 표시되나요?', 'Adafruit Unified Sensor 라이브러리도 설치되어 있나요?']
+        }
+      },
+      {
+        id: 'demo-3',
+        env: 'python',
+        chipLabel: '3. Python ModuleNotFoundError',
+        description: 'pandas 패키지 또는 인터프리터 확인',
+        data: {
+          title: 'pandas 모듈을 찾을 수 없음',
+          os: 'Windows', ver: '3.10', tool: 'VS Code', venv: '사용 안 함',
+          stage: '코드 실행', cmd: 'python app.py',
+          situation: 'Python 스크립트 실행 중 pandas import에서 오류가 발생합니다.',
+          log: 'Traceback (most recent call last):\n  File "C:/projects/app.py", line 2, in <module>\n    import pandas as pd\nModuleNotFoundError: No module named \'pandas\'',
+          code: 'import pandas as pd\n\ndf = pd.DataFrame({"a": [1, 2]})\nprint(df)',
+          tried: 'pip install pandas 명령어를 실행했지만 오류가 계속됩니다.'
+        },
+        result: {
+          errorType: 'Python 모듈 미설치 또는 인터프리터 불일치',
+          summary: '현재 실행 중인 Python 인터프리터가 pandas 패키지를 찾지 못했습니다. 패키지가 설치되지 않았거나 설치한 Python과 실행에 사용한 Python이 서로 다를 수 있습니다.',
+          evidence: ['ModuleNotFoundError: No module named \'pandas\' 메시지가 확인됩니다.', '오류가 import pandas 구문에서 발생했습니다.'],
+          causes: [
+            { name: 'pandas 패키지 미설치', reason: '실행 환경에 pandas가 설치되어 있지 않을 수 있습니다.', check: '현재 인터프리터에서 python -m pip show pandas를 실행합니다.' },
+            { name: 'pip와 Python 인터프리터 불일치', reason: '패키지를 설치한 환경과 VS Code가 실행하는 환경이 다를 수 있습니다.', check: 'VS Code에서 선택한 Python 인터프리터 경로를 확인합니다.' }
+          ],
+          steps: [
+            { step: 1, title: '현재 인터프리터에 패키지 설치', desc: 'VS Code 터미널에서 python -m pip install pandas를 실행합니다.', why: 'python 명령과 연결된 pip를 사용해 패키지를 설치합니다.', expect: '설치 완료 후 import pandas가 정상 실행되는지 확인합니다.', note: '가상환경을 사용한다면 먼저 해당 환경을 활성화하세요.' },
+            { step: 2, title: 'VS Code 인터프리터 확인', desc: '명령 팔레트에서 Python: Select Interpreter를 선택하고 프로젝트에서 사용하는 인터프리터를 지정합니다.', why: '실행 환경과 패키지 설치 환경을 일치시키기 위한 단계입니다.', expect: '선택한 인터프리터에서 pandas가 import되는지 확인합니다.', note: '터미널과 실행 버튼이 서로 다른 환경을 사용하는지도 확인하세요.' }
+          ],
+          questions: ['VS Code 하단에 표시된 Python 경로와 터미널의 python 경로가 동일한가요?', 'python -m pip show pandas 명령에서 패키지 정보가 출력되나요?']
+        }
+      },
+      {
+        id: 'demo-4',
+        env: 'python',
+        chipLabel: '4. Python FileNotFoundError',
+        description: '상대 경로와 작업 디렉터리 확인',
+        data: {
+          title: 'data.csv 파일을 찾을 수 없음',
+          os: 'macOS', ver: '3.11', tool: 'VS Code', venv: 'venv',
+          stage: '파일 읽기', cmd: 'python main.py',
+          situation: '스크립트에서 같은 프로젝트의 CSV 파일을 읽으려 할 때 오류가 발생합니다.',
+          log: 'Traceback (most recent call last):\n  File "/Users/user/project/main.py", line 5, in <module>\n    with open("data.csv", "r") as f:\nFileNotFoundError: [Errno 2] No such file or directory: \'data.csv\'',
+          code: 'with open("data.csv", "r", encoding="utf-8") as f:\n    data = f.read()',
+          tried: 'main.py와 data.csv가 같은 폴더에 있는지 확인했습니다.'
+        },
+        result: {
+          errorType: '파일 경로 오류 (FileNotFoundError)',
+          summary: 'Python이 현재 작업 디렉터리를 기준으로 data.csv 파일을 찾지 못했습니다. 실제 파일 위치와 실행 작업 디렉터리가 일치하는지 확인해야 합니다.',
+          evidence: ['FileNotFoundError: [Errno 2] No such file or directory 메시지가 확인됩니다.', 'open("data.csv", "r")에서 상대 경로를 사용하고 있습니다.'],
+          causes: [
+            { name: '현재 작업 디렉터리 불일치', reason: '상대 경로는 스크립트 파일 위치가 아니라 실행 시점의 작업 디렉터리를 기준으로 해석될 수 있습니다.', check: 'os.getcwd()를 출력해 현재 작업 디렉터리를 확인합니다.' },
+            { name: '파일명 또는 확장자 불일치', reason: '대소문자, 확장자, 공백 등이 실제 파일명과 다를 수 있습니다.', check: '파일 탐색기에서 실제 파일명과 확장자를 확인합니다.' }
+          ],
+          steps: [
+            { step: 1, title: '현재 작업 디렉터리 확인', desc: '코드에 import os와 print(os.getcwd())를 추가해 실행 위치를 출력합니다.', why: '상대 경로가 어느 폴더를 기준으로 해석되는지 확인합니다.', expect: 'data.csv가 존재하는 폴더와 현재 작업 디렉터리를 비교합니다.', note: 'VS Code의 실행 방식에 따라 작업 디렉터리가 달라질 수 있습니다.' },
+            { step: 2, title: '파일 경로 명시', desc: '프로젝트 구조에 맞는 경로를 지정하거나 pathlib.Path(__file__).resolve().parent를 기준으로 파일 경로를 구성합니다.', why: '스크립트 위치를 기준으로 파일을 찾도록 경로를 명확하게 합니다.', expect: '파일이 정상적으로 열리는지 확인합니다.', note: 'Jupyter Notebook 등에서는 __file__을 사용할 수 없으므로 실행 환경에 맞게 경로를 지정하세요.' }
+          ],
+          questions: ['os.getcwd() 출력 결과는 어느 폴더인가요?', 'data.csv의 실제 파일명과 확장자가 정확히 일치하나요?']
+        }
+      }
+    ];
+
+    function defaultForm(env) {
+      return env === 'arduino'
+        ? { title: '', os: 'Windows', board: 'Uno R3', ide: '', stage: '업로드', port: '', recognized: '예', extra: '', situation: '', log: '', code: '', tried: '' }
+        : { title: '', os: 'Windows', ver: '', tool: 'VS Code', venv: '사용 안 함', stage: '코드 실행', cmd: '', situation: '', log: '', code: '', tried: '' };
+    }
+
+    function element(tag, text, className) {
+      const el = document.createElement(tag);
+      if (text !== undefined && text !== null) el.textContent = String(text);
+      if (className) el.className = className;
+      return el;
+    }
+
+    function message(id, text) {
+      const el = $(id);
+      if (!el) return;
+      el.textContent = text || '';
+      el.classList.toggle('hidden', !text);
+    }
+
+    function newId() {
+      return 'rec_' + (globalThis.crypto && typeof globalThis.crypto.randomUUID === 'function'
+        ? globalThis.crypto.randomUUID()
+        : Date.now() + '_' + Math.random().toString(36).slice(2));
+    }
+
     function toggleExtraEnvFields() {
       const container = $('extra-env-container');
       const icon = $('extra-env-toggle-icon');
-      const isHidden = container.classList.contains('hidden');
-      container.classList.toggle('hidden', !isHidden);
-      icon.textContent = isHidden ? '▲' : '▼';
+      if (!container || !icon) return;
+      const willOpen = container.classList.contains('hidden');
+      container.classList.toggle('hidden', !willOpen);
+      icon.textContent = willOpen ? '▲' : '▼';
     }
 
     function setBusy(busy, mode = 'ai') {
       state.busy = busy;
+      state.activeMode = mode;
       $('btn-analyze-ai').disabled = busy;
       $('btn-analyze-demo').disabled = busy;
       $('cancel-bar').classList.toggle('hidden', !busy);
-
-      if (mode === 'ai') {
-        $('btn-analyze-ai').textContent = busy ? '⏳ Analyzing via Gemini...' : '✨ Run Gemini AI Diagnostic';
-      } else {
-        $('btn-analyze-demo').textContent = busy ? '⏳ Loading Demo...' : '🔍 Offline Demo Mode';
-      }
+      $('btn-analyze-ai').textContent = busy && mode === 'ai'
+        ? '⏳ Analyzing via Gemini...'
+        : '✨ Run Gemini AI Diagnostic';
+      $('btn-analyze-demo').textContent = busy && mode === 'demo'
+        ? '⏳ Loading Demo...'
+        : '🔍 Offline Demo Mode';
       $('analysis-form').setAttribute('aria-busy', String(busy));
+    }
+
+    function cancelActiveRequest() {
+      state.runId += 1;
+      if (state.abortController) {
+        state.abortController.abort();
+        state.abortController = null;
+      }
+      if (state.busy) setBusy(false, state.activeMode || 'ai');
+    }
+
+    function switchTab(tabId) {
+      if (!['analyze', 'history', 'guide'].includes(tabId)) return;
+      if (tabId !== 'analyze') cancelActiveRequest();
+
+      document.querySelectorAll('.nav-btn').forEach(btn => {
+        const selected = btn.dataset.tab === tabId;
+        btn.classList.toggle('active', selected);
+        if (selected) btn.setAttribute('aria-current', 'page');
+        else btn.removeAttribute('aria-current');
+      });
+      document.querySelectorAll('.tab-content').forEach(tab => {
+        tab.classList.toggle('active', tab.id === 'tab-' + tabId);
+      });
+
+      const labels = {
+        analyze: 'Diagnostic Session',
+        history: 'My History',
+        guide: 'User Guide & Limits'
+      };
+      if ($('breadcrumb-label')) $('breadcrumb-label').textContent = labels[tabId];
+      if (tabId === 'history') renderHistoryList();
+    }
+
+    function collectInput() {
+      const env = state.currentEnv;
+      const form = {};
+      for (const key of ['title', 'os', 'situation', 'log', 'code', 'tried']) {
+        form[key] = $('inp-' + key).value;
+      }
+
+      const ids = env === 'arduino'
+        ? { board: 'ard-board', ide: 'ard-ide', stage: 'ard-stage', port: 'ard-port', recognized: 'ard-recognized', extra: 'ard-extra' }
+        : { ver: 'py-ver', tool: 'py-tool', venv: 'py-venv', stage: 'py-stage', cmd: 'py-cmd' };
+
+      for (const [key, id] of Object.entries(ids)) {
+        const el = $(id);
+        form[key] = el ? el.value : '';
+      }
+      return { env, form };
+    }
+
+    function saveFormDataToState() {
+      const input = collectInput();
+      state[input.env === 'arduino' ? 'arduinoForm' : 'pythonForm'] = copy(input.form);
+      return input;
+    }
+
+    function snapshotsEqual(a, b) {
+      if (!a || !b || a.env !== b.env) return false;
+      const aKeys = Object.keys(a.form || {});
+      const bKeys = Object.keys(b.form || {});
+      return aKeys.length === bKeys.length && aKeys.every(key => a.form[key] === b.form[key]);
+    }
+
+    function updateCounters() {
+      for (const [key, id] of [['log', 'log-count'], ['code', 'code-count'], ['title', 'title-count'], ['tried', 'tried-count']]) {
+        const input = $('inp-' + key);
+        const counter = $(id);
+        if (!input || !counter) continue;
+        const length = input.value.length;
+        const invalid = length > LIMITS[key];
+        counter.textContent = length.toLocaleString() + ' / ' + LIMITS[key].toLocaleString() + '자' +
+          (invalid ? ' — 초과, 내용을 줄여 주세요' : '');
+        counter.classList.toggle('counter-error', invalid);
+        input.setAttribute('aria-invalid', invalid ? 'true' : 'false');
+      }
+    }
+
+    function restoreFormDataFromState() {
+      const form = state[state.currentEnv === 'arduino' ? 'arduinoForm' : 'pythonForm'];
+      for (const key of ['title', 'os', 'situation', 'log', 'code', 'tried']) {
+        $('inp-' + key).value = form[key] || '';
+      }
+
+      const ids = state.currentEnv === 'arduino'
+        ? { board: 'ard-board', ide: 'ard-ide', stage: 'ard-stage', port: 'ard-port', recognized: 'ard-recognized', extra: 'ard-extra' }
+        : { ver: 'py-ver', tool: 'py-tool', venv: 'py-venv', stage: 'py-stage', cmd: 'py-cmd' };
+
+      for (const [key, id] of Object.entries(ids)) {
+        const el = $(id);
+        if (el) el.value = form[key] || '';
+      }
+
+      const isArduino = state.currentEnv === 'arduino';
+      $('env-btn-arduino').classList.toggle('active', isArduino);
+      $('env-btn-python').classList.toggle('active', !isArduino);
+      $('arduino-fields').classList.toggle('hidden', !isArduino);
+      $('python-fields').classList.toggle('hidden', isArduino);
+      if ($('arduino-extra-fields')) $('arduino-extra-fields').classList.toggle('hidden', !isArduino);
+      updateCounters();
+    }
+
+    function invalidateCurrentResult() {
+      cancelActiveRequest();
+      updateCounters();
+      if (state.currentAnalysis && state.analysisSnapshot) {
+        state.isStaleResult = true;
+        $('stale-warning-banner').textContent =
+          '⚠️ 입력 양식의 내용이 수정되었습니다. 현재 진단 결과는 이전 입력 기준입니다. 다시 분석을 실행하세요.';
+        $('stale-warning-banner').classList.remove('hidden');
+        $('btn-save-record').disabled = true;
+      }
+      message('form-errors', '');
+    }
+
+    function handleCharInput() {
+      invalidateCurrentResult();
+    }
+
+    function validateInput(input) {
+      const errors = [];
+      if (!input.form.log || !input.form.log.trim()) {
+        errors.push({ key: 'log', text: '오류 메시지 및 로그를 입력해 주세요. 공백만 입력할 수 없습니다.' });
+      }
+
+      for (const [key, max] of Object.entries(LIMITS)) {
+        const value = input.form[key] || '';
+        if (value.length > max) {
+          errors.push({ key, text: FIELD_NAMES[key] + '는 ' + max.toLocaleString() + '자 이하여야 합니다. 입력은 잘리지 않았습니다.' });
+        }
+      }
+
+      updateCounters();
+      message('form-errors', errors.map(error => error.text).join('\n'));
+      if (errors.length) {
+        const first = $('inp-' + errors[0].key);
+        if (first) {
+          first.setAttribute('aria-invalid', 'true');
+          first.focus();
+        }
+        return false;
+      }
+      return true;
+    }
+
+    function setEnvironment(env) {
+      if (!['arduino', 'python'].includes(env) || state.currentEnv === env) return;
+      cancelActiveRequest();
+      saveFormDataToState();
+      state.currentEnv = env;
+      restoreFormDataFromState();
+      renderExampleChips();
+      invalidateCurrentResult();
+    }
+
+    function renderExampleChips() {
+      const container = $('example-chips-container');
+      container.replaceChildren();
+
+      DEMO_CASES.filter(item => item.env === state.currentEnv).forEach(item => {
+        const card = element('div', undefined, 'example-item');
+        card.setAttribute('role', 'button');
+        card.setAttribute('tabindex', '0');
+        const heading = element('div', item.chipLabel, 'example-item-header');
+        const description = element('div', item.description, 'example-item-desc');
+        card.append(heading, description);
+
+        const openExample = () => loadDemoCase(item.id);
+        card.addEventListener('click', openExample);
+        card.addEventListener('keydown', event => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            openExample();
+          }
+        });
+        container.append(card);
+      });
+    }
+
+    function clearCurrentResult() {
+      cancelActiveRequest();
+      state.currentAnalysis = null;
+      state.analysisSnapshot = null;
+      state.analysisSource = '';
+      state.isStaleResult = false;
+      state.analysisId = null;
+      state.savedRecordId = null;
+      $('output-placeholder').classList.remove('hidden');
+      $('output-result').classList.add('hidden');
+      $('stale-warning-banner').classList.add('hidden');
+      $('btn-save-record').disabled = true;
+    }
+
+    function resetFormWithConfirm() {
+      const input = collectInput();
+      const defaults = defaultForm(input.env);
+      const changed = Object.keys(input.form).some(key => input.form[key] !== defaults[key]);
+      if ((changed || state.currentAnalysis || state.busy) &&
+          !confirm('작성 중인 입력과 현재 결과가 초기화됩니다. 저장된 기록은 삭제되지 않습니다. 계속하시겠습니까?')) {
+        return;
+      }
+
+      cancelActiveRequest();
+      state[input.env === 'arduino' ? 'arduinoForm' : 'pythonForm'] = defaults;
+      restoreFormDataFromState();
+      clearCurrentResult();
+      message('form-errors', '');
+    }
+
+    function loadDemoCase(caseId) {
+      const demo = DEMO_CASES.find(item => item.id === caseId);
+      if (!demo) return;
+
+      cancelActiveRequest();
+      if (state.currentEnv !== demo.env) {
+        saveFormDataToState();
+        state.currentEnv = demo.env;
+      }
+      state[demo.env === 'arduino' ? 'arduinoForm' : 'pythonForm'] = copy(demo.data);
+      restoreFormDataFromState();
+      renderExampleChips();
+      message('form-errors', '');
+      displayAnalysisResult(demo.result, 'Offline Example: ' + demo.chipLabel, collectInput(), 'demo');
+    }
+
+    async function checkApiAvailability() {
+      const badge = $('banner-mode-badge');
+      const bannerText = $('banner-mode-text');
+      const sidebarText = $('sidebar-status-text');
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 6000);
+
+      if (badge) {
+        badge.textContent = '서버 상태 점검 중';
+        badge.className = 'badge badge-demo';
+      }
+      if (bannerText) bannerText.textContent = 'API 상태 확인 중...';
+      if (sidebarText) sidebarText.textContent = 'API: Checking server...';
+
+      try {
+        const response = await fetch('/api/analyze', {
+          method: 'GET',
+          headers: { 'Accept': 'application/json' },
+          signal: controller.signal,
+          cache: 'no-store'
+        });
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+
+        const data = await response.json();
+        if (!data || data.success !== true) throw new Error('Invalid API status response');
+
+        state.apiAvailable = data.hasApiKey === true;
+        state.activeModelName = data.model || 'Gemini model';
+        state.isProductionReady = data.isProductionReady === true;
+
+        if (state.apiAvailable) {
+          badge.textContent = state.isProductionReady ? 'AI 연동 준비됨' : 'AI 키 확인됨';
+          badge.className = 'badge badge-ai';
+          bannerText.textContent = 'Vercel API · ' + state.activeModelName +
+            (state.isProductionReady ? '' : ' · 실연동 검증 전');
+          sidebarText.textContent = 'API: Key detected · ' + state.activeModelName;
+        } else {
+          badge.textContent = 'API 키 미설정';
+          badge.className = 'badge badge-demo';
+          bannerText.textContent = '서버 환경변수 필요 · 오프라인 데모 이용 가능';
+          sidebarText.textContent = 'API: Server reachable · no key';
+        }
+      } catch (error) {
+        state.apiAvailable = false;
+        state.activeModelName = null;
+        state.isProductionReady = false;
+        if (badge) {
+          badge.textContent = '데모 전용';
+          badge.className = 'badge badge-demo';
+        }
+        if (bannerText) bannerText.textContent = '서버 API 미연결 · 오프라인 데모 사용 가능';
+        if (sidebarText) sidebarText.textContent =
+          error && error.name === 'AbortError' ? 'API: Status check timed out' : 'API: Server unavailable';
+      } finally {
+        clearTimeout(timeoutId);
+      }
+    }
+
+    async function runAnalysis(mode) {
+      if (!['ai', 'demo'].includes(mode)) return;
+      cancelActiveRequest();
+
+      const input = saveFormDataToState();
+      if (!validateInput(input)) return;
+
+      const token = state.runId;
+      const controller = new AbortController();
+      state.abortController = controller;
+      setBusy(true, mode);
+
+      try {
+        if (mode === 'demo') {
+          await new Promise(resolve => setTimeout(resolve, 120));
+          if (controller.signal.aborted || token !== state.runId ||
+              !snapshotsEqual(input, collectInput())) return;
+
+          const matched = DEMO_CASES.find(item =>
+            item.env === input.env &&
+            Object.keys(input.form).every(key => input.form[key] === item.data[key])
+          );
+
+          if (matched) {
+            displayAnalysisResult(matched.result, 'Offline Example: ' + matched.chipLabel, input, 'demo');
+          } else {
+            displayAnalysisResult(
+              generateRuleBasedAnalysis(input.form.log, input.env),
+              'Rule-based Offline Guidance',
+              input,
+              'demo'
+            );
+          }
+          return;
+        }
+
+        const response = await fetch('/api/analyze', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+          signal: controller.signal,
+          body: JSON.stringify({
+            env: input.env,
+            environmentDetails: input.form,
+            errorLog: input.form.log,
+            codeSnippet: input.form.code,
+            attemptedActions: input.form.tried
+          })
+        });
+
+        const raw = await response.text();
+        let result;
+        try {
+          result = raw ? JSON.parse(raw) : {};
+        } catch {
+          throw new Error('서버가 JSON이 아닌 응답을 반환했습니다. Vercel 배포 로그를 확인해 주세요.');
+        }
+
+        if (controller.signal.aborted || token !== state.runId ||
+            !snapshotsEqual(input, collectInput())) return;
+
+        if (!response.ok || result.success !== true) {
+          throw new Error(result.error || ('HTTP ' + response.status + ' 요청 실패'));
+        }
+        if (!result.data || typeof result.data !== 'object') {
+          throw new Error('서버 분석 결과 형식이 올바르지 않습니다.');
+        }
+
+        const modelLabel = result.model
+          ? 'Gemini AI (' + result.model + ')'
+          : 'Gemini AI Diagnostic';
+        displayAnalysisResult(result.data, modelLabel, input, 'ai');
+      } catch (error) {
+        if (error && error.name === 'AbortError') return;
+        if (token === state.runId) {
+          message('form-errors', '❌ 분석 중 오류가 발생했습니다: ' +
+            (error && error.message ? error.message : '알 수 없는 오류'));
+        }
+      } finally {
+        if (token === state.runId) {
+          state.abortController = null;
+          setBusy(false, mode);
+        }
+      }
+    }
+
+    function generateRuleBasedAnalysis(log, env = state.currentEnv) {
+      const lower = String(log || '').toLowerCase();
+      let errorType = '일반 오류 로그';
+      let summary = '오프라인 규칙 기반 안내입니다. 이 결과는 Gemini AI가 생성한 분석이 아니며, 입력된 로그의 키워드를 바탕으로 기본 점검 방향을 제시합니다.';
+      let evidence = ['입력 환경: ' + env.toUpperCase(), '사전 정의된 예제와 완전히 일치하지 않아 일반 점검 안내를 표시합니다.'];
+      let causes = [
+        { name: '로그 정보 부족 또는 여러 원인의 가능성', reason: '현재 입력만으로 단일 원인을 확정하기 어렵습니다.', check: '오류가 발생한 단계와 전체 로그 앞뒤 문맥을 확인합니다.' }
+      ];
+      let steps = [
+        { step: 1, title: '오류 발생 지점 확인', desc: '전체 로그에서 최초 오류 메시지와 파일명·줄 번호를 확인합니다.', why: '마지막 오류 문구만으로는 최초 원인을 놓칠 수 있습니다.', expect: '오류가 발생한 코드 또는 작업 단계가 좁혀집니다.', note: '비밀번호, API 키, 토큰 등 민감정보는 공유하지 마세요.' },
+        { step: 2, title: '환경 설정 재확인', desc: '선택한 보드·포트 또는 Python 인터프리터·가상환경이 실제 실행 환경과 일치하는지 확인합니다.', why: '환경 불일치는 코드가 정상이어도 오류를 일으킬 수 있습니다.', expect: '환경 설정과 실행 대상이 일치하는지 확인합니다.', note: '설정을 한 번에 여러 개 변경하지 말고 하나씩 확인하세요.' }
+      ];
+
+      if (env === 'python' && lower.includes('modulenotfounderror')) {
+        errorType = 'ModuleNotFoundError';
+        summary = 'Python이 import 대상 모듈을 현재 실행 환경에서 찾지 못했습니다. 패키지 설치 여부와 실행 인터프리터가 같은 환경인지 확인하세요.';
+        evidence = ['로그에서 ModuleNotFoundError가 확인됩니다.'];
+        causes = [
+          { name: '패키지 미설치', reason: '현재 인터프리터에 해당 패키지가 설치되지 않았을 수 있습니다.', check: 'python -m pip show 패키지명으로 설치 상태를 확인합니다.' },
+          { name: '인터프리터 불일치', reason: '패키지를 설치한 환경과 코드를 실행하는 환경이 다를 수 있습니다.', check: 'VS Code의 선택 인터프리터와 터미널의 python 경로를 비교합니다.' }
+        ];
+        steps = [
+          { step: 1, title: '현재 Python에 패키지 설치', desc: 'python -m pip install 패키지명을 실행합니다.', why: '실행에 사용되는 Python과 연결된 pip를 사용합니다.', expect: 'import 문이 정상 실행되는지 확인합니다.', note: '가상환경을 사용한다면 먼저 활성화하세요.' }
+        ];
+      } else if (env === 'python' && lower.includes('filenotfounderror')) {
+        errorType = 'FileNotFoundError';
+        summary = 'Python이 지정된 경로에서 파일을 찾지 못했습니다. 실제 파일 위치와 현재 작업 디렉터리, 파일명을 확인하세요.';
+        evidence = ['로그에서 FileNotFoundError가 확인됩니다.'];
+        causes = [
+          { name: '상대 경로 기준 위치 불일치', reason: '상대 경로는 스크립트 위치가 아니라 현재 작업 디렉터리를 기준으로 해석될 수 있습니다.', check: 'os.getcwd()로 현재 작업 디렉터리를 확인합니다.' }
+        ];
+        steps = [
+          { step: 1, title: '파일 경로 확인', desc: '실제 파일명과 확장자를 확인하고 os.getcwd()로 실행 위치를 출력합니다.', why: '파일 경로가 실제 실행 위치와 일치하는지 확인합니다.', expect: '파일이 존재하는 올바른 경로를 확인합니다.', note: 'Jupyter 등에서는 실행 방식에 따라 경로 기준이 다를 수 있습니다.' }
+        ];
+      } else if (env === 'python' && lower.includes('syntaxerror')) {
+        errorType = 'SyntaxError';
+        summary = 'Python 코드의 문법을 해석하는 과정에서 오류가 발생했습니다. 오류가 가리키는 줄과 그 직전 줄의 괄호·따옴표·콜론을 확인하세요.';
+        evidence = ['로그에서 SyntaxError가 확인됩니다.'];
+        causes = [
+          { name: '괄호·따옴표·콜론 누락', reason: '문법 요소가 닫히지 않았거나 잘못 입력되었을 수 있습니다.', check: '오류 줄과 바로 앞 줄의 기호를 확인합니다.' }
+        ];
+      } else if (env === 'arduino' && (lower.includes('avrdude') || lower.includes('stk500'))) {
+        errorType = 'Arduino 업로드 통신 오류';
+        summary = 'Arduino 업로드 과정에서 보드와 PC 사이의 통신 응답을 받지 못한 것으로 보입니다.';
+        evidence = ['로그에서 avrdude 또는 stk500 관련 문구가 확인됩니다.'];
+        causes = [
+          { name: '포트 또는 보드 선택 오류', reason: 'IDE의 선택 항목이 실제 연결 상태와 다를 수 있습니다.', check: '도구 메뉴의 보드와 포트를 확인합니다.' },
+          { name: 'USB 케이블 또는 외부 배선 간섭', reason: '데이터 케이블 문제나 Rx/Tx 핀 점유 가능성이 있습니다.', check: '다른 데이터 케이블을 사용하고 0·1번 핀 배선을 확인합니다.' }
+        ];
+      } else if (env === 'arduino' && lower.includes('no such file or directory')) {
+        errorType = 'Arduino 라이브러리 또는 파일 경로 오류';
+        summary = '컴파일러가 지정된 헤더 파일을 찾지 못했습니다. 라이브러리 설치 여부와 include 파일명을 확인하세요.';
+        evidence = ['로그에서 No such file or directory 문구가 확인됩니다.'];
+        causes = [
+          { name: '라이브러리 미설치 또는 헤더 이름 불일치', reason: '현재 IDE의 라이브러리 경로에 해당 헤더가 없을 수 있습니다.', check: '라이브러리 매니저와 include 구문을 확인합니다.' }
+        ];
+      }
+
+      return {
+        errorType,
+        summary,
+        evidence,
+        causes,
+        steps,
+        questions: ['전체 오류 로그와 오류가 발생한 작업 단계를 확인했나요?', '최근 변경한 코드·라이브러리·환경 설정이 있나요?']
+      };
     }
 
     function displayAnalysisResult(resultData, badgeText, snapshot = collectInput(), mode = 'ai') {
@@ -1549,8 +2185,16 @@
 
     function clearAllHistory() {
       try {
-        const raw = localStorage.getItem(STORAGE_KEY);
-        if (!raw) { alert('삭제할 기록이 없습니다.'); return; }
+        // Validate the stored data before deletion; never purge unreadable records silently.
+        const existing = getHistoryFromStorage();
+        if (existing === null) {
+          alert('저장 기록을 정상적으로 읽을 수 없어 전체 삭제를 중단했습니다. 원본 데이터를 먼저 확인해 주세요.');
+          return;
+        }
+        if (!existing.length) {
+          alert('삭제할 기록이 없습니다.');
+          return;
+        }
         if (confirm('저장된 모든 해결 기록을 삭제하시겠습니까?')) {
           localStorage.removeItem(STORAGE_KEY);
           state.storageIssue = null;
